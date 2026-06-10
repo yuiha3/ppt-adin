@@ -3,31 +3,20 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>テキスト色別集計アドイン</title>
-
+  <title>テキスト集計アドイン</title>
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
-
-  <link rel="stylesheet" href="./style.css?v=4" />
+  <link rel="stylesheet" href="./style.css?v=5" />
 </head>
 <body>
   <main class="container">
-    <h1>テキスト色別集計</h1>
+    <h1>テキスト集計</h1>
 
-    <p>
-      現在のスライドから、指定した文字色の数字を取得して合計します。
-    </p>
+    <p>現在のスライドから、指定した文字色の数字・番号を取得して集計します。</p>
 
-    <button id="sumButton" type="button">
-      青文字の数字を集計
-    </button>
-
-    <button id="sumGreenButton" type="button" class="greenButton">
-      緑文字の数字を集計
-    </button>
-
-    <button id="sumSelectedColorButton" type="button" class="selectedColorButton">
-      選択中の文字色で集計
-    </button>
+    <button id="sumButton" type="button">青文字の数字を集計</button>
+    <button id="sumGreenButton" type="button" class="greenButton">緑文字の数字を集計</button>
+    <button id="sumSelectedColorButton" type="button" class="selectedColorButton">選択中の文字色で数字を集計</button>
+    <button id="formatBlackCodeButton" type="button" class="blackButton">黒文字の番号を整理</button>
 
     <div class="resultBox">
       <div id="targetColor">対象色：未選択</div>
@@ -35,6 +24,6 @@
     </div>
   </main>
 
-  <script src="./taskpane.js?v=4"></script>
+  <script src="./taskpane.js?v=5"></script>
 </body>
 </html>

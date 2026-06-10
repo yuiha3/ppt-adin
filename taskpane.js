@@ -2,6 +2,7 @@ Office.onReady(() => {
   const blueButton = document.getElementById("sumButton");
   const greenButton = document.getElementById("sumGreenButton");
   const selectedColorButton = document.getElementById("sumSelectedColorButton");
+  const formatBlackCodeButton = document.getElementById("formatBlackCodeButton");
 
   if (blueButton) {
     blueButton.addEventListener("click", async () => {
@@ -20,12 +21,14 @@ Office.onReady(() => {
       await sumNumbersBySelectedTextColor();
     });
   }
+
+  if (formatBlackCodeButton) {
+    formatBlackCodeButton.addEventListener("click", async () => {
+      await formatCodesByColorOnCurrentSlide("#000000", "黒文字 RGB(0,0,0)");
+    });
+  }
 });
 
-/**
- * 選択中テキストの文字色を取得し、
- * 現在のスライド内で同じ文字色の数字を合計する
- */
 async function sumNumbersBySelectedTextColor() {
   const result = document.getElementById("result");
   const targetColorElement = document.getElementById("targetColor");
@@ -35,17 +38,8 @@ async function sumNumbersBySelectedTextColor() {
 
   try {
     await PowerPoint.run(async (context) => {
-      /*
-        複数選択チェック。
-        図形が複数選択されている場合は中止。
-      */
       const selectedShapes = context.presentation.getSelectedShapes();
       const selectedShapeCount = selectedShapes.getCount();
-
-      /*
-        選択中のテキスト範囲を取得。
-        テキストが選択されていない場合は NullObject になる。
-      */
       const selectedTextRange = context.presentation.getSelectedTextRangeOrNullObject();
 
       await context.sync();
@@ -78,10 +72,7 @@ async function sumNumbersBySelectedTextColor() {
         return;
       }
 
-      await sumNumbersByColorOnCurrentSlide(
-        selectedColor,
-        `選択中の文字色 ${selectedColor}`
-      );
+      await sumNumbersByColorOnCurrentSlide(selectedColor, `選択中の文字色 ${selectedColor}`);
     });
   } catch (error) {
     console.error(error);
@@ -89,9 +80,6 @@ async function sumNumbersBySelectedTextColor() {
   }
 }
 
-/**
- * 現在のスライド内で、指定色の数字を合計する
- */
 async function sumNumbersByColorOnCurrentSlide(targetColor, colorLabel) {
   const result = document.getElementById("result");
   const targetColorElement = document.getElementById("targetColor");
@@ -114,7 +102,6 @@ async function sumNumbersByColorOnCurrentSlide(targetColor, colorLabel) {
       }
 
       const slide = selectedSlides.items[0];
-
       const shapes = slide.shapes;
       shapes.load("items");
 
@@ -131,9 +118,7 @@ async function sumNumbersByColorOnCurrentSlide(targetColor, colorLabel) {
 
           await context.sync();
 
-          if (textFrame.isNullObject || !textFrame.hasText) {
-            continue;
-          }
+          if (textFrame.isNullObject || !textFrame.hasText) continue;
 
           checkedShapeCount++;
 
@@ -143,49 +128,15 @@ async function sumNumbersByColorOnCurrentSlide(targetColor, colorLabel) {
           await context.sync();
 
           const text = textRange.text || "";
+          if (!text) continue;
 
-          if (!text) {
-            continue;
-          }
-
-          /*
-            文字単位で色を見る。
-            これにより、1つのテキストボックス内に複数色が混在しても、
-            対象色の文字だけを抜き出せる。
-          */
-          const charRanges = [];
-
-          for (let i = 0; i < text.length; i++) {
-            const charRange = textRange.getSubstring(i, 1);
-            charRange.load("text");
-            charRange.font.load("color");
-            charRanges.push(charRange);
-          }
-
-          await context.sync();
-
-          let targetColorText = "";
-
-          for (const charRange of charRanges) {
-            const charText = charRange.text || "";
-            const color = normalizeColor(charRange.font.color);
-
-            if (color === targetColor) {
-              targetColorText += charText;
-            } else {
-              targetColorText += " ";
-            }
-          }
-
+          const targetColorText = await extractTextByColor(context, textRange, text, targetColor);
           const numbers = targetColorText.match(/-?\d+(?:\.\d+)?/g);
 
-          if (!numbers) {
-            continue;
-          }
+          if (!numbers) continue;
 
           for (const numText of numbers) {
             const value = Number(numText);
-
             if (!Number.isNaN(value)) {
               total += value;
               matchedNumbers.push(value);
@@ -208,19 +159,181 @@ async function sumNumbersByColorOnCurrentSlide(targetColor, colorLabel) {
   }
 }
 
-/**
- * Office.js の色表記を #xxxxxx に正規化
- */
-function normalizeColor(color) {
-  if (!color) {
-    return "";
+async function formatCodesByColorOnCurrentSlide(targetColor, colorLabel) {
+  const result = document.getElementById("result");
+  const targetColorElement = document.getElementById("targetColor");
+
+  result.textContent = "整理中...";
+  targetColorElement.textContent = `対象色：${colorLabel}`;
+
+  try {
+    await PowerPoint.run(async (context) => {
+      const selectedSlides = context.presentation.getSelectedSlides();
+      selectedSlides.load("items");
+
+      const slideCount = selectedSlides.getCount();
+
+      await context.sync();
+
+      if (slideCount.value === 0) {
+        result.textContent = "現在のスライドを取得できませんでした。";
+        return;
+      }
+
+      const slide = selectedSlides.items[0];
+      const shapes = slide.shapes;
+      shapes.load("items");
+
+      await context.sync();
+
+      const grouped = {};
+      let checkedShapeCount = 0;
+      let matchedCodeCount = 0;
+
+      for (const shape of shapes.items) {
+        try {
+          const textFrame = shape.getTextFrameOrNullObject();
+          textFrame.load("hasText");
+
+          await context.sync();
+
+          if (textFrame.isNullObject || !textFrame.hasText) continue;
+
+          checkedShapeCount++;
+
+          const textRange = textFrame.textRange;
+          textRange.load("text");
+
+          await context.sync();
+
+          const text = textRange.text || "";
+          if (!text) continue;
+
+          const targetColorText = await extractTextByColor(context, textRange, text, targetColor);
+          const codeMatches = targetColorText.match(/\b[A-Z]-\d+\b/g);
+
+          if (!codeMatches) continue;
+
+          for (const code of codeMatches) {
+            const match = code.match(/^([A-Z])-(\d+)$/);
+            if (!match) continue;
+
+            const letter = match[1];
+            const number = Number(match[2]);
+
+            if (!grouped[letter]) grouped[letter] = [];
+
+            grouped[letter].push(number);
+            matchedCodeCount++;
+          }
+        } catch (shapeError) {
+          console.warn("この図形はスキップしました:", shapeError);
+        }
+      }
+
+      const outputLines = [];
+      const letters = Object.keys(grouped).sort();
+
+      for (const letter of letters) {
+        const uniqueSortedNumbers = [...new Set(grouped[letter])].sort((a, b) => a - b);
+        const compressed = compressNumberRanges(uniqueSortedNumbers);
+        outputLines.push(`${letter}-${compressed}`);
+      }
+
+      if (outputLines.length === 0) {
+        result.innerHTML = `
+          <div><strong>結果：</strong>該当する番号はありません。</div>
+          <div><strong>確認したテキスト図形数：</strong>${checkedShapeCount}</div>
+        `;
+        return;
+      }
+
+      result.innerHTML = `
+        <div><strong>出力結果：</strong></div>
+        <pre class="outputText">${escapeHtml(outputLines.join("\n"))}</pre>
+        <div><strong>取得した番号数：</strong>${matchedCodeCount}</div>
+        <div><strong>確認したテキスト図形数：</strong>${checkedShapeCount}</div>
+      `;
+    });
+  } catch (error) {
+    console.error(error);
+    result.textContent = "エラー：" + error.message;
   }
+}
+
+async function extractTextByColor(context, textRange, text, targetColor) {
+  const charRanges = [];
+
+  for (let i = 0; i < text.length; i++) {
+    const charRange = textRange.getSubstring(i, 1);
+    charRange.load("text");
+    charRange.font.load("color");
+    charRanges.push(charRange);
+  }
+
+  await context.sync();
+
+  let targetColorText = "";
+
+  for (const charRange of charRanges) {
+    const charText = charRange.text || "";
+    const color = normalizeColor(charRange.font.color);
+
+    if (color === targetColor) {
+      targetColorText += charText;
+    } else {
+      targetColorText += " ";
+    }
+  }
+
+  return targetColorText;
+}
+
+function compressNumberRanges(numbers) {
+  if (!numbers || numbers.length === 0) return "";
+
+  const ranges = [];
+  let start = numbers[0];
+  let prev = numbers[0];
+
+  for (let i = 1; i < numbers.length; i++) {
+    const current = numbers[i];
+
+    if (current === prev + 1) {
+      prev = current;
+      continue;
+    }
+
+    ranges.push(formatRange(start, prev));
+    start = current;
+    prev = current;
+  }
+
+  ranges.push(formatRange(start, prev));
+
+  return ranges.join(", ");
+}
+
+function formatRange(start, end) {
+  if (start === end) return String(start);
+  return `${start}~${end}`;
+}
+
+function normalizeColor(color) {
+  if (!color) return "";
 
   let c = String(color).trim().toLowerCase();
 
-  if (/^[0-9a-f]{6}$/.test(c)) {
-    c = "#" + c;
-  }
+  if (/^[0-9a-f]{6}$/.test(c)) c = "#" + c;
 
   return c;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
