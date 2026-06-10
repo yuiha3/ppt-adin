@@ -3,21 +3,30 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>テストボタンアドイン</title>
+  <title>テキスト色別集計アドイン</title>
 
-  <!-- Office.js はOffice Add-insで必要です -->
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
   <main class="container">
-    <h1>テストアドイン</h1>
-    <p>ボタンを1個表示するだけのPowerPoint用テスト画面です。</p>
+    <h1>テキスト色別集計</h1>
 
-    <button id="testButton" type="button">テストボタン</button>
+    <p>
+      現在のスライドから、文字色が
+      <strong>RGB(0,112,192)</strong>
+      の数字を取得して合計します。
+    </p>
 
-    <p id="result" class="result">未クリック</p>
+    <button id="sumButton" type="button">
+      青文字の数字を集計
+    </button>
+
+    <div class="resultBox">
+      <div>対象色：#0070c0</div>
+      <div id="result">未集計</div>
+    </div>
   </main>
 
   <script src="./taskpane.js"></script>
