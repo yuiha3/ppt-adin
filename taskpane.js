@@ -1,0 +1,8 @@
+Office.onReady(() => {
+  const button = document.getElementById("testButton");
+  const result = document.getElementById("result");
+
+  button.addEventListener("click", () => {
+    result.textContent = "ボタンがクリックされました";
+  });
+});
