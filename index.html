@@ -7,28 +7,34 @@
 
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./style.css?v=4" />
 </head>
 <body>
   <main class="container">
     <h1>テキスト色別集計</h1>
 
     <p>
-      現在のスライドから、文字色が
-      <strong>RGB(0,112,192)</strong>
-      の数字を取得して合計します。
+      現在のスライドから、指定した文字色の数字を取得して合計します。
     </p>
 
     <button id="sumButton" type="button">
       青文字の数字を集計
     </button>
 
+    <button id="sumGreenButton" type="button" class="greenButton">
+      緑文字の数字を集計
+    </button>
+
+    <button id="sumSelectedColorButton" type="button" class="selectedColorButton">
+      選択中の文字色で集計
+    </button>
+
     <div class="resultBox">
-      <div>対象色：#0070c0</div>
+      <div id="targetColor">対象色：未選択</div>
       <div id="result">未集計</div>
     </div>
   </main>
 
-  <script src="./taskpane.js"></script>
+  <script src="./taskpane.js?v=4"></script>
 </body>
 </html>

@@ -44,3 +44,21 @@ button:hover {
   font-size: 14px;
   line-height: 1.8;
 }
+
+.selectedColorButton {
+  margin-top: 10px;
+  background: #6f42c1;
+}
+
+.selectedColorButton:hover {
+  background: #5a32a3;
+}
+
+.greenButton {
+  margin-top: 10px;
+  background: #00b050;
+}
+
+.greenButton:hover {
+  background: #008f41;
+}

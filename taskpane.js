@@ -1,23 +1,110 @@
 Office.onReady(() => {
-  const button = document.getElementById("sumButton");
+  const blueButton = document.getElementById("sumButton");
+  const greenButton = document.getElementById("sumGreenButton");
+  const selectedColorButton = document.getElementById("sumSelectedColorButton");
 
-  button.addEventListener("click", async () => {
-    await sumBlueNumbersOnCurrentSlide();
-  });
+  if (blueButton) {
+    blueButton.addEventListener("click", async () => {
+      await sumNumbersByColorOnCurrentSlide("#0070c0", "青文字 RGB(0,112,192)");
+    });
+  }
+
+  if (greenButton) {
+    greenButton.addEventListener("click", async () => {
+      await sumNumbersByColorOnCurrentSlide("#00b050", "緑文字 RGB(0,176,80)");
+    });
+  }
+
+  if (selectedColorButton) {
+    selectedColorButton.addEventListener("click", async () => {
+      await sumNumbersBySelectedTextColor();
+    });
+  }
 });
 
-async function sumBlueNumbersOnCurrentSlide() {
+/**
+ * 選択中テキストの文字色を取得し、
+ * 現在のスライド内で同じ文字色の数字を合計する
+ */
+async function sumNumbersBySelectedTextColor() {
   const result = document.getElementById("result");
-  result.textContent = "集計中...";
+  const targetColorElement = document.getElementById("targetColor");
 
-  const targetColor = "#0070c0";
+  result.textContent = "選択中の文字色を取得中...";
+  targetColorElement.textContent = "対象色：選択中の文字色";
 
   try {
     await PowerPoint.run(async (context) => {
-      // 現在表示中のスライドを取得
+      /*
+        複数選択チェック。
+        図形が複数選択されている場合は中止。
+      */
+      const selectedShapes = context.presentation.getSelectedShapes();
+      const selectedShapeCount = selectedShapes.getCount();
+
+      /*
+        選択中のテキスト範囲を取得。
+        テキストが選択されていない場合は NullObject になる。
+      */
+      const selectedTextRange = context.presentation.getSelectedTextRangeOrNullObject();
+
+      await context.sync();
+
+      if (selectedShapeCount.value > 1) {
+        result.textContent = "複数選択されています。色を取得したいテキストを1つだけ選択してください。";
+        return;
+      }
+
+      selectedTextRange.load("text");
+      selectedTextRange.font.load("color");
+
+      await context.sync();
+
+      if (selectedTextRange.isNullObject) {
+        result.textContent = "テキストが選択されていません。色を取得したい文字を1つ選択してください。";
+        return;
+      }
+
+      const selectedText = selectedTextRange.text || "";
+      const selectedColor = normalizeColor(selectedTextRange.font.color);
+
+      if (!selectedText.trim()) {
+        result.textContent = "選択中のテキストが空です。色を取得したい文字を選択してください。";
+        return;
+      }
+
+      if (!selectedColor) {
+        result.textContent = "選択中テキストの文字色を取得できませんでした。1色の文字だけを選択してください。";
+        return;
+      }
+
+      await sumNumbersByColorOnCurrentSlide(
+        selectedColor,
+        `選択中の文字色 ${selectedColor}`
+      );
+    });
+  } catch (error) {
+    console.error(error);
+    result.textContent = "エラー：" + error.message;
+  }
+}
+
+/**
+ * 現在のスライド内で、指定色の数字を合計する
+ */
+async function sumNumbersByColorOnCurrentSlide(targetColor, colorLabel) {
+  const result = document.getElementById("result");
+  const targetColorElement = document.getElementById("targetColor");
+
+  result.textContent = "集計中...";
+  targetColorElement.textContent = `対象色：${colorLabel}`;
+
+  try {
+    await PowerPoint.run(async (context) => {
       const selectedSlides = context.presentation.getSelectedSlides();
-      const slideCount = selectedSlides.getCount();
       selectedSlides.load("items");
+
+      const slideCount = selectedSlides.getCount();
 
       await context.sync();
 
@@ -28,24 +115,23 @@ async function sumBlueNumbersOnCurrentSlide() {
 
       const slide = selectedSlides.items[0];
 
-      // 現在のスライド内の図形を取得
       const shapes = slide.shapes;
       shapes.load("items");
 
       await context.sync();
 
       let total = 0;
-      let matchedNumbers = [];
+      const matchedNumbers = [];
       let checkedShapeCount = 0;
 
       for (const shape of shapes.items) {
         try {
-          const textFrame = shape.textFrame;
+          const textFrame = shape.getTextFrameOrNullObject();
           textFrame.load("hasText");
 
           await context.sync();
 
-          if (!textFrame.hasText) {
+          if (textFrame.isNullObject || !textFrame.hasText) {
             continue;
           }
 
@@ -58,14 +144,14 @@ async function sumBlueNumbersOnCurrentSlide() {
 
           const text = textRange.text || "";
 
-          if (text.length === 0) {
+          if (!text) {
             continue;
           }
 
           /*
-            文字単位で色を確認します。
-            これにより、1つのテキストボックス内に
-            青文字と黒文字が混在していても対応できます。
+            文字単位で色を見る。
+            これにより、1つのテキストボックス内に複数色が混在しても、
+            対象色の文字だけを抜き出せる。
           */
           const charRanges = [];
 
@@ -87,12 +173,10 @@ async function sumBlueNumbersOnCurrentSlide() {
             if (color === targetColor) {
               targetColorText += charText;
             } else {
-              // 数字同士がつながらないように区切る
               targetColorText += " ";
             }
           }
 
-          // 整数・小数・マイナスに対応
           const numbers = targetColorText.match(/-?\d+(?:\.\d+)?/g);
 
           if (!numbers) {
@@ -108,7 +192,6 @@ async function sumBlueNumbersOnCurrentSlide() {
             }
           }
         } catch (shapeError) {
-          // テキストを持たない特殊な図形などは無視
           console.warn("この図形はスキップしました:", shapeError);
         }
       }
@@ -125,6 +208,9 @@ async function sumBlueNumbersOnCurrentSlide() {
   }
 }
 
+/**
+ * Office.js の色表記を #xxxxxx に正規化
+ */
 function normalizeColor(color) {
   if (!color) {
     return "";
@@ -132,11 +218,9 @@ function normalizeColor(color) {
 
   let c = String(color).trim().toLowerCase();
 
-  // "0070c0" のように # がない場合に対応
   if (/^[0-9a-f]{6}$/.test(c)) {
     c = "#" + c;
   }
 
-  // "#0070C0" → "#0070c0"
   return c;
 }
