@@ -419,3 +419,79 @@ body {
   border-color: #fca5a5;
   color: #ef4444;
 }
+
+/* =============================================
+   Fixed Result Footer
+   ============================================= */
+html, body {
+  height: 100%;
+}
+
+body {
+  padding-bottom: 72px; /* footerの高さ分だけ余白を確保 */
+}
+
+.scroll-pad {
+  height: 4px;
+}
+
+.result-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
+  z-index: 100;
+  padding: 8px 12px 10px;
+}
+
+.result-footer-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+
+.result-footer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.result-total {
+  flex: 1;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1d23;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  min-height: 28px;
+}
+
+.copy-btn {
+  flex-shrink: 0;
+  width: auto;
+  padding: 6px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+.copy-btn:hover:not(:disabled) {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.copy-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

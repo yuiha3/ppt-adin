@@ -46,6 +46,24 @@ function initializeSummaryButtons() {
   bindClick("formatBlackCodeButton", () =>
     formatCodesByTextColor(COLORS.BLACK, "黒文字 RGB(0,0,0)")
   );
+
+  const copyBtn = document.getElementById("copyResultButton");
+  if (copyBtn) {
+    copyBtn.disabled = true;
+    copyBtn.addEventListener("click", async () => {
+      const value = copyBtn.dataset.copyValue;
+      if (!value) return;
+      try {
+        await navigator.clipboard.writeText(value);
+        const original = copyBtn.textContent;
+        copyBtn.textContent = "✓ コピー済";
+        setTimeout(() => { copyBtn.textContent = original; }, 1500);
+      } catch {
+        copyBtn.textContent = "失敗";
+        setTimeout(() => { copyBtn.textContent = "コピー"; }, 1500);
+      }
+    });
+  }
 }
 
 function initializeTabs() {
@@ -608,38 +626,11 @@ function renderNumberSummary({
   checkedShapeCount,
   matchedShapeCount = null
 }) {
-  const matchedShapeHtml =
-    matchedShapeCount === null
-      ? ""
-      : `<div><strong>一致した背景色の図形数：</strong>${matchedShapeCount}</div>`;
-
-  setResultHtml(`
-    <div><strong>合計：</strong>${total}</div>
-    <div><strong>取得した数字：</strong>${numbers.length ? numbers.join(", ") : "なし"}</div>
-    ${matchedShapeHtml}
-    <div><strong>確認したテキスト図形数：</strong>${checkedShapeCount}</div>
-  `);
+  setResultValue(total);
 }
 
 function renderCodeSummary({ grouped, matchedCodeCount, checkedShapeCount }) {
-  const outputLines = Object.keys(grouped)
-    .sort()
-    .map((letter) => `${letter}-${compressNumberRanges(grouped[letter])}`);
-
-  if (outputLines.length === 0) {
-    setResultHtml(`
-      <div><strong>結果：</strong>該当する番号はありません。</div>
-      <div><strong>確認したテキスト図形数：</strong>${checkedShapeCount}</div>
-    `);
-    return;
-  }
-
-  setResultHtml(`
-    <div><strong>出力結果：</strong></div>
-    <pre class="outputText">${escapeHtml(outputLines.join("\n"))}</pre>
-    <div><strong>取得した番号数：</strong>${matchedCodeCount}</div>
-    <div><strong>確認したテキスト図形数：</strong>${checkedShapeCount}</div>
-  `);
+  setResultValue(matchedCodeCount);
 }
 
 function createElement(tagName, options = {}) {
@@ -658,11 +649,33 @@ function setStatus(targetColorText, resultText) {
 
 function setResultText(text) {
   setElementText(UI.result, text);
+  updateCopyButton(null);
+}
+
+function setResultValue(value) {
+  const element = document.getElementById(UI.result);
+  if (element) {
+    element.textContent = typeof value === "number" ? String(value) : value;
+  }
+  updateCopyButton(typeof value === "number" ? value : null);
 }
 
 function setResultHtml(html) {
   const element = document.getElementById(UI.result);
   if (element) element.innerHTML = html;
+  updateCopyButton(null);
+}
+
+function updateCopyButton(value) {
+  const btn = document.getElementById("copyResultButton");
+  if (!btn) return;
+  if (value === null) {
+    btn.disabled = true;
+    btn.dataset.copyValue = "";
+  } else {
+    btn.disabled = false;
+    btn.dataset.copyValue = String(value);
+  }
 }
 
 function setElementText(elementId, text) {

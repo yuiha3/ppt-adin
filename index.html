@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>社内ツール</title>
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
-  <link rel="stylesheet" href="./style.css?v=9" />
+  <link rel="stylesheet" href="./style.css?v=10" />
 </head>
 <body>
   <main class="container">
@@ -64,25 +64,15 @@
       </div>
 
       <div class="divider"></div>
-      <p class="section-label">番号整理</p>
+      <p class="section-label">写真番号を集計</p>
       <div class="action-list">
         <button id="formatBlackCodeButton" type="button" class="action-btn dark">
           <span class="btn-dot"></span>
           <span class="btn-label">
-            黒文字の番号を整理
-            <span class="btn-sub">A-1, A-2 … をまとめて出力</span>
+            黒文字の写真番号を集計
+            <span class="btn-sub">黒文字を集計して合計を表示</span>
           </span>
         </button>
-      </div>
-
-      <div class="result-box">
-        <div class="result-box-header">
-          <span class="result-label-text">結果</span>
-          <span id="targetColor">対象色：未選択</span>
-        </div>
-        <div class="result-body">
-          <div id="result">未集計</div>
-        </div>
       </div>
 
     </section>
@@ -111,8 +101,23 @@
 
     </section>
 
+    <div class="scroll-pad"></div>
   </main>
 
-  <script src="./taskpane.js?v=9"></script>
+  <footer class="result-footer">
+    <div class="result-footer-inner">
+      <div class="result-footer-meta">
+        <span class="result-label-text">結果</span>
+        <span id="targetColor">対象色：未選択</span>
+      </div>
+      <div class="result-footer-row">
+        <div id="result" class="result-total">未集計</div>
+        <button id="copyResultButton" type="button" class="copy-btn" title="クリップボードにコピー">
+          コピー
+        </button>
+      </div>
+    </div>
+  </footer>
+  <script src="./taskpane.js?v=10"></script>
 </body>
 </html>
