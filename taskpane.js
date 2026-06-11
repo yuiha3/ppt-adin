@@ -204,7 +204,8 @@ async function sumNumbersByTextColor(targetTextColor, label) {
     renderNumberSummary({
       total: sum(numbers),
       numbers,
-      checkedShapeCount: textShapes.length
+      checkedShapeCount: textShapes.length,
+      color: targetTextColor
     });
   });
 }
@@ -286,7 +287,8 @@ async function sumNumbersByTextAndFillColor({ targetTextColor, targetFillColor }
       total: sum(numbers),
       numbers,
       checkedShapeCount: textShapes.length,
-      matchedShapeCount: targetShapes.length
+      matchedShapeCount: targetShapes.length,
+      color: targetTextColor
     });
   });
 }
@@ -323,7 +325,8 @@ async function formatCodesByTextColor(targetTextColor, label) {
     renderCodeSummary({
       grouped,
       matchedCodeCount,
-      checkedShapeCount: textShapes.length
+      checkedShapeCount: textShapes.length,
+      color: targetTextColor
     });
   });
 }
@@ -624,13 +627,14 @@ function renderNumberSummary({
   total,
   numbers,
   checkedShapeCount,
-  matchedShapeCount = null
+  matchedShapeCount = null,
+  color = null
 }) {
-  setResultValue(total);
+  setResultValue(total, color);
 }
 
-function renderCodeSummary({ grouped, matchedCodeCount, checkedShapeCount }) {
-  setResultValue(matchedCodeCount);
+function renderCodeSummary({ grouped, matchedCodeCount, checkedShapeCount, color = null }) {
+  setResultValue(matchedCodeCount, color);
 }
 
 function createElement(tagName, options = {}) {
@@ -652,10 +656,11 @@ function setResultText(text) {
   updateCopyButton(null);
 }
 
-function setResultValue(value) {
+function setResultValue(value, color = null) {
   const element = document.getElementById(UI.result);
   if (element) {
     element.textContent = typeof value === "number" ? String(value) : value;
+    element.style.color = color || "";
   }
   updateCopyButton(typeof value === "number" ? value : null);
 }

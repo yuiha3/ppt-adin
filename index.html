@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>社内ツール</title>
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
-  <link rel="stylesheet" href="./style.css?v=10" />
+  <link rel="stylesheet" href="./style.css?v=12" />
 </head>
 <body>
   <main class="container">
@@ -105,19 +105,14 @@
   </main>
 
   <footer class="result-footer">
-    <div class="result-footer-inner">
-      <div class="result-footer-meta">
-        <span class="result-label-text">結果</span>
-        <span id="targetColor">対象色：未選択</span>
-      </div>
-      <div class="result-footer-row">
-        <div id="result" class="result-total">未集計</div>
-        <button id="copyResultButton" type="button" class="copy-btn" title="クリップボードにコピー">
-          コピー
-        </button>
-      </div>
+    <span id="targetColor" hidden></span>
+    <div class="result-footer-row">
+      <div id="result" class="result-total">未集計</div>
+      <button id="copyResultButton" type="button" class="copy-btn" title="クリップボードにコピー">
+        コピー
+      </button>
     </div>
   </footer>
-  <script src="./taskpane.js?v=10"></script>
+  <script src="./taskpane.js?v=12"></script>
 </body>
 </html>

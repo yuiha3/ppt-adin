@@ -428,11 +428,11 @@ html, body {
 }
 
 body {
-  padding-bottom: 72px; /* footerの高さ分だけ余白を確保 */
+  padding-bottom: 80px; /* footerの実高さに合わせて余白確保 */
 }
 
 .scroll-pad {
-  height: 4px;
+  height: 16px; /* ボタンとfooterの間に追加余白 */
 }
 
 .result-footer {
@@ -444,14 +444,7 @@ body {
   border-top: 1px solid #e5e7eb;
   box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
   z-index: 100;
-  padding: 8px 12px 10px;
-}
-
-.result-footer-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 5px;
+  padding: 10px 12px 12px;
 }
 
 .result-footer-row {
@@ -462,12 +455,12 @@ body {
 
 .result-total {
   flex: 1;
-  font-size: 22px;
+  font-size: 32px;
   font-weight: 700;
   color: #1a1d23;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  min-height: 28px;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  text-align: center;
 }
 
 .copy-btn {
