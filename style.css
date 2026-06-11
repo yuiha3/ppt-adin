@@ -421,35 +421,40 @@ body {
 }
 
 /* =============================================
-   Fixed Result Footer
+   Sticky Footer Layout
    ============================================= */
-html, body {
+html {
   height: 100%;
 }
 
 body {
-  padding-bottom: 100px; /* footerの実高さ＋余裕を確保 */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+
+.container {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-bottom: 0;
 }
 
 .scroll-pad {
-  height: 24px; /* ボタンとfooterの間に追加余白 */
+  height: 20px;
 }
 
 .result-footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  flex: 0 0 auto;
   background: #ffffff;
   border-top: 1px solid #e5e7eb;
   box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
-  z-index: 100;
-  padding: 10px 12px 12px;
+  padding: 10px 12px 14px;
 }
 
 .result-footer-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
 }
 
@@ -461,7 +466,7 @@ body {
   letter-spacing: -0.02em;
   line-height: 1.1;
   text-align: center;
-  overflow: hidden;
+  word-break: break-word;
 }
 
 /* 写真番号整理の出力テキスト */
