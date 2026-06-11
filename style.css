@@ -1,85 +1,390 @@
+/* =============================================
+   Base & Reset
+   ============================================= */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  font-family: "Yu Gothic UI", "Meiryo", sans-serif;
-  background: #f6f7f9;
-  color: #222;
+  font-family: "Yu Gothic UI", "Meiryo", "Segoe UI", sans-serif;
+  background: #f0f2f5;
+  color: #1a1d23;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
+/* =============================================
+   Layout
+   ============================================= */
 .container {
-  padding: 20px;
+  padding: 12px 12px 20px;
+  max-width: 320px;
 }
 
-h1 {
-  font-size: 20px;
-  margin: 0 0 12px;
+/* =============================================
+   Header
+   ============================================= */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 8px;
+  margin-bottom: 2px;
 }
 
-p {
+.app-header h1 {
   font-size: 14px;
-  line-height: 1.6;
-}
-
-button {
-  width: 100%;
-  padding: 14px 16px;
-  border: none;
-  border-radius: 10px;
-  background: #0070c0;
-  color: white;
-  font-size: 16px;
   font-weight: 700;
-  cursor: pointer;
+  letter-spacing: 0.02em;
+  color: #1a1d23;
+  margin: 0;
 }
 
-button:hover {
-  background: #005a99;
+.app-header .header-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  color: #6b7280;
+  background: #e5e7eb;
+  border-radius: 4px;
+  padding: 2px 6px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.greenButton {
-  margin-top: 10px;
-  background: #00b050;
-}
-
-.greenButton:hover {
-  background: #008f41;
-}
-
-.selectedColorButton {
-  margin-top: 10px;
-  background: #6f42c1;
-}
-
-.selectedColorButton:hover {
-  background: #5a32a3;
-}
-
-.blackButton {
-  margin-top: 10px;
-  background: #111111;
-}
-
-.blackButton:hover {
-  background: #333333;
-}
-
-.resultBox {
-  margin-top: 16px;
-  padding: 12px;
-  background: white;
+/* =============================================
+   Tabs
+   ============================================= */
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 12px;
+  background: #e5e7eb;
   border-radius: 8px;
-  border: 1px solid #ddd;
-  font-size: 14px;
+  padding: 3px;
+}
+
+.tabButton {
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  letter-spacing: 0.01em;
+}
+
+.tabButton:hover {
+  background: rgba(255,255,255,0.6);
+  color: #374151;
+}
+
+.tabButton.active {
+  background: #ffffff;
+  color: #0070c0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* =============================================
+   Tab Content
+   ============================================= */
+.tabContent {
+  display: none;
+}
+
+.tabContent.active {
+  display: block;
+}
+
+/* =============================================
+   Section Label
+   ============================================= */
+.section-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0 0 6px;
+}
+
+/* =============================================
+   Action Buttons (集計タブ)
+   ============================================= */
+.action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1a1d23;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+  position: relative;
+  overflow: hidden;
+}
+
+.action-btn::before {
+  content: "";
+  display: block;
+  width: 3px;
+  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 8px 0 0 8px;
+  background: var(--btn-color, #0070c0);
+}
+
+.action-btn:hover {
+  background: #f8fafc;
+  border-color: #d1d5db;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+
+.action-btn:active {
+  background: #f0f4f8;
+}
+
+.action-btn .btn-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--btn-color, #0070c0);
+}
+
+.action-btn .btn-label {
+  flex: 1;
+  line-height: 1.3;
+}
+
+.action-btn .btn-sub {
+  font-size: 10px;
+  color: #9ca3af;
+  font-weight: 400;
+  display: block;
+  margin-top: 1px;
+}
+
+/* 色別 */
+.action-btn.blue  { --btn-color: #0070c0; }
+.action-btn.green { --btn-color: #00b050; }
+.action-btn.purple{ --btn-color: #7c3aed; }
+.action-btn.teal  { --btn-color: #0f766e; }
+.action-btn.dark  { --btn-color: #374151; }
+
+/* =============================================
+   Result Box
+   ============================================= */
+.result-box {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.result-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.result-label-text {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+#targetColor {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 400;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-body {
+  padding: 10px;
+}
+
+#result {
+  font-size: 12px;
+  color: #374151;
   line-height: 1.8;
 }
 
+#result strong {
+  color: #1a1d23;
+  font-weight: 700;
+}
+
+/* =============================================
+   Output Text (番号整理の出力)
+   ============================================= */
 .outputText {
   white-space: pre-wrap;
-  margin: 8px 0 12px;
-  padding: 10px;
-  background: #f3f4f6;
-  border: 1px solid #ddd;
+  margin: 6px 0 8px;
+  padding: 8px 10px;
+  background: #f0f2f5;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-family: "Consolas", "Yu Gothic UI", monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #1a1d23;
+}
+
+/* =============================================
+   Defect Buttons (表作成タブ)
+   ============================================= */
+.tab-description {
+  font-size: 11px;
+  color: #6b7280;
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+.defectButtonGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.defectButton {
+  padding: 9px 6px;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  font-family: Consolas, "Yu Gothic UI", monospace;
-  font-size: 14px;
-  line-height: 1.6;
+  background: #ffffff;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  text-align: center;
+  width: 100%;
+}
+
+.defectButton:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.defectButton:active {
+  background: #dbeafe;
+}
+
+/* =============================================
+   Table
+   ============================================= */
+.tableHeader {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 0.8fr;
+  gap: 4px;
+  padding: 5px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 4px;
+}
+
+.tableRows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tableInputRow {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 0.8fr;
+  gap: 4px;
+}
+
+.tableInput {
+  width: 100%;
+  padding: 7px 7px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-family: "Yu Gothic UI", "Meiryo", sans-serif;
+  font-size: 12px;
+  background: #ffffff;
+  color: #1a1d23;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.tableInput:focus {
+  outline: none;
+  border-color: #0070c0;
+  box-shadow: 0 0 0 2px rgba(0,112,192,0.12);
+}
+
+.quantityInput {
+  text-align: right;
+}
+
+/* =============================================
+   Table Action
+   ============================================= */
+.tableActionArea {
+  margin-top: 10px;
+}
+
+.clear-btn {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  letter-spacing: 0.02em;
+}
+
+.clear-btn:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #ef4444;
+}
+
+/* =============================================
+   Divider
+   ============================================= */
+.divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 10px 0;
 }

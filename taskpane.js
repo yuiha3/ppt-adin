@@ -1,266 +1,498 @@
+const COLORS = {
+  BLUE: "#0070c0",
+  GREEN: "#00b050",
+  BLACK: "#000000"
+};
+
+const UI = {
+  result: "result",
+  targetColor: "targetColor"
+};
+
+const TAB_IDS = {
+  summary: "summaryTab",
+  table: "tableTab"
+};
+
+const DEFECT_ITEMS = [
+  { content: "タイル割れ", unit: "枚数" },
+  { content: "タイル浮き", unit: "枚数" },
+  { content: "モルタル浮き", unit: "㎡" },
+  { content: "塗膜浮き", unit: "㎡" }
+];
+
 Office.onReady(() => {
-  const blueButton = document.getElementById("sumButton");
-  const greenButton = document.getElementById("sumGreenButton");
-  const selectedColorButton = document.getElementById("sumSelectedColorButton");
-  const formatBlackCodeButton = document.getElementById("formatBlackCodeButton");
-
-  if (blueButton) {
-    blueButton.addEventListener("click", async () => {
-      await sumNumbersByColorOnCurrentSlide("#0070c0", "青文字 RGB(0,112,192)");
-    });
-  }
-
-  if (greenButton) {
-    greenButton.addEventListener("click", async () => {
-      await sumNumbersByColorOnCurrentSlide("#00b050", "緑文字 RGB(0,176,80)");
-    });
-  }
-
-  if (selectedColorButton) {
-    selectedColorButton.addEventListener("click", async () => {
-      await sumNumbersBySelectedTextColor();
-    });
-  }
-
-  if (formatBlackCodeButton) {
-    formatBlackCodeButton.addEventListener("click", async () => {
-      await formatCodesByColorOnCurrentSlide("#000000", "黒文字 RGB(0,0,0)");
-    });
-  }
+  initializeTabs();
+  initializeTableBuilder();
+  initializeSummaryButtons();
 });
 
+function initializeSummaryButtons() {
+  bindClick("sumBlueButton", () =>
+    sumNumbersByTextColor(COLORS.BLUE, "青文字 RGB(0,112,192)")
+  );
+
+  bindClick("sumGreenButton", () =>
+    sumNumbersByTextColor(COLORS.GREEN, "緑文字 RGB(0,176,80)")
+  );
+
+  bindClick("sumSelectedColorButton", sumNumbersBySelectedTextColor);
+
+  bindClick(
+    "sumSelectedTextAndFillColorButton",
+    sumNumbersBySelectedTextColorAndFillColor
+  );
+
+  bindClick("formatBlackCodeButton", () =>
+    formatCodesByTextColor(COLORS.BLACK, "黒文字 RGB(0,0,0)")
+  );
+}
+
+function initializeTabs() {
+  const tabButtons = Array.from(document.querySelectorAll(".tabButton"));
+
+  tabButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      activateTab(button.dataset.tabTarget);
+    });
+  });
+}
+
+function activateTab(tabId) {
+  if (!tabId) return;
+
+  document.querySelectorAll(".tabButton").forEach((button) => {
+    button.classList.toggle("active", button.dataset.tabTarget === tabId);
+  });
+
+  document.querySelectorAll(".tabContent").forEach((content) => {
+    content.classList.toggle("active", content.id === tabId);
+  });
+}
+
+function initializeTableBuilder() {
+  renderDefectButtons();
+  bindClick("clearTableRowsButton", clearTableRows);
+}
+
+function renderDefectButtons() {
+  const container = document.getElementById("defectButtonGrid");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  DEFECT_ITEMS.forEach((item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "defectButton";
+    button.textContent = item.content;
+    button.addEventListener("click", () => addTableRow(item));
+
+    container.appendChild(button);
+  });
+}
+
+function addTableRow({ content, unit }) {
+  const tableRows = document.getElementById("tableRows");
+  if (!tableRows) return;
+
+  const row = createElement("div", {
+    className: "tableInputRow"
+  });
+
+  const quantityInput = createTableInput({
+    type: "number",
+    className: "quantityInput",
+    placeholder: "数量"
+  });
+
+  row.append(
+    createTableInput({
+      value: content,
+      className: "contentInput"
+    }),
+    quantityInput,
+    createTableInput({
+      value: unit,
+      className: "unitInput"
+    })
+  );
+
+  tableRows.appendChild(row);
+  quantityInput.focus();
+}
+
+function createTableInput({ type = "text", value = "", className = "", placeholder = "" }) {
+  const input = document.createElement("input");
+
+  input.type = type;
+  input.className = ["tableInput", className].filter(Boolean).join(" ");
+  input.value = value;
+  input.placeholder = placeholder;
+
+  return input;
+}
+
+function clearTableRows() {
+  const tableRows = document.getElementById("tableRows");
+  if (tableRows) tableRows.replaceChildren();
+}
+
+function bindClick(elementId, handler) {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+
+  element.addEventListener("click", async () => {
+    try {
+      await handler();
+    } catch (error) {
+      console.error(error);
+      setResultText("エラー：" + getErrorMessage(error));
+    }
+  });
+}
+
+/**
+ * 指定した文字色の数字を、現在のスライドから取得して合計する。
+ */
+async function sumNumbersByTextColor(targetTextColor, label) {
+  setStatus(`対象色：${label}`, "集計中...");
+
+  await PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return;
+
+    const textShapes = await getTextShapes(context, slide);
+    const numbers = [];
+
+    for (const item of textShapes) {
+      const coloredText = await extractTextByColor(
+        context,
+        item.textRange,
+        item.text,
+        targetTextColor
+      );
+
+      numbers.push(...extractNumbers(coloredText));
+    }
+
+    renderNumberSummary({
+      total: sum(numbers),
+      numbers,
+      checkedShapeCount: textShapes.length
+    });
+  });
+}
+
+/**
+ * 選択中テキストの文字色を取得し、その文字色の数字を現在のスライドから合計する。
+ */
 async function sumNumbersBySelectedTextColor() {
-  const result = document.getElementById("result");
-  const targetColorElement = document.getElementById("targetColor");
+  setStatus("対象色：選択中の文字色", "選択中の文字色を取得中...");
 
-  result.textContent = "選択中の文字色を取得中...";
-  targetColorElement.textContent = "対象色：選択中の文字色";
+  const selected = await getSelectedTextInfo();
 
-  try {
-    await PowerPoint.run(async (context) => {
-      const selectedShapes = context.presentation.getSelectedShapes();
-      const selectedShapeCount = selectedShapes.getCount();
-      const selectedTextRange = context.presentation.getSelectedTextRangeOrNullObject();
-
-      await context.sync();
-
-      if (selectedShapeCount.value > 1) {
-        result.textContent = "複数選択されています。色を取得したいテキストを1つだけ選択してください。";
-        return;
-      }
-
-      selectedTextRange.load("text");
-      selectedTextRange.font.load("color");
-
-      await context.sync();
-
-      if (selectedTextRange.isNullObject) {
-        result.textContent = "テキストが選択されていません。色を取得したい文字を1つ選択してください。";
-        return;
-      }
-
-      const selectedText = selectedTextRange.text || "";
-      const selectedColor = normalizeColor(selectedTextRange.font.color);
-
-      if (!selectedText.trim()) {
-        result.textContent = "選択中のテキストが空です。色を取得したい文字を選択してください。";
-        return;
-      }
-
-      if (!selectedColor) {
-        result.textContent = "選択中テキストの文字色を取得できませんでした。1色の文字だけを選択してください。";
-        return;
-      }
-
-      await sumNumbersByColorOnCurrentSlide(selectedColor, `選択中の文字色 ${selectedColor}`);
-    });
-  } catch (error) {
-    console.error(error);
-    result.textContent = "エラー：" + error.message;
+  if (!selected.ok) {
+    setResultText(selected.message);
+    return;
   }
+
+  await sumNumbersByTextColor(
+    selected.textColor,
+    `選択中の文字色 ${selected.textColor}`
+  );
 }
 
-async function sumNumbersByColorOnCurrentSlide(targetColor, colorLabel) {
-  const result = document.getElementById("result");
-  const targetColorElement = document.getElementById("targetColor");
+/**
+ * 選択中テキストの文字色と、選択中図形の塗りつぶし色を取得し、
+ * 両方が一致する図形内の数字を合計する。
+ */
+async function sumNumbersBySelectedTextColorAndFillColor() {
+  setStatus("対象：選択中の文字色＋背景色", "選択中の文字色と背景色を取得中...");
 
-  result.textContent = "集計中...";
-  targetColorElement.textContent = `対象色：${colorLabel}`;
+  const selected = await getSelectedTextAndFillInfo();
 
-  try {
-    await PowerPoint.run(async (context) => {
-      const selectedSlides = context.presentation.getSelectedSlides();
-      selectedSlides.load("items");
-
-      const slideCount = selectedSlides.getCount();
-
-      await context.sync();
-
-      if (slideCount.value === 0) {
-        result.textContent = "現在のスライドを取得できませんでした。";
-        return;
-      }
-
-      const slide = selectedSlides.items[0];
-      const shapes = slide.shapes;
-      shapes.load("items");
-
-      await context.sync();
-
-      let total = 0;
-      const matchedNumbers = [];
-      let checkedShapeCount = 0;
-
-      for (const shape of shapes.items) {
-        try {
-          const textFrame = shape.getTextFrameOrNullObject();
-          textFrame.load("hasText");
-
-          await context.sync();
-
-          if (textFrame.isNullObject || !textFrame.hasText) continue;
-
-          checkedShapeCount++;
-
-          const textRange = textFrame.textRange;
-          textRange.load("text");
-
-          await context.sync();
-
-          const text = textRange.text || "";
-          if (!text) continue;
-
-          const targetColorText = await extractTextByColor(context, textRange, text, targetColor);
-          const numbers = targetColorText.match(/-?\d+(?:\.\d+)?/g);
-
-          if (!numbers) continue;
-
-          for (const numText of numbers) {
-            const value = Number(numText);
-            if (!Number.isNaN(value)) {
-              total += value;
-              matchedNumbers.push(value);
-            }
-          }
-        } catch (shapeError) {
-          console.warn("この図形はスキップしました:", shapeError);
-        }
-      }
-
-      result.innerHTML = `
-        <div><strong>合計：</strong>${total}</div>
-        <div><strong>取得した数字：</strong>${matchedNumbers.length ? matchedNumbers.join(", ") : "なし"}</div>
-        <div><strong>確認したテキスト図形数：</strong>${checkedShapeCount}</div>
-      `;
-    });
-  } catch (error) {
-    console.error(error);
-    result.textContent = "エラー：" + error.message;
+  if (!selected.ok) {
+    setResultText(selected.message);
+    return;
   }
+
+  await sumNumbersByTextAndFillColor({
+    targetTextColor: selected.textColor,
+    targetFillColor: selected.fillColor
+  });
 }
 
-async function formatCodesByColorOnCurrentSlide(targetColor, colorLabel) {
-  const result = document.getElementById("result");
-  const targetColorElement = document.getElementById("targetColor");
+/**
+ * 指定した文字色かつ指定した背景色の数字を合計する。
+ */
+async function sumNumbersByTextAndFillColor({ targetTextColor, targetFillColor }) {
+  setStatus(
+    `対象：文字色 ${targetTextColor} / 背景色 ${targetFillColor}`,
+    "集計中..."
+  );
 
-  result.textContent = "整理中...";
-  targetColorElement.textContent = `対象色：${colorLabel}`;
+  await PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return;
 
-  try {
-    await PowerPoint.run(async (context) => {
-      const selectedSlides = context.presentation.getSelectedSlides();
-      selectedSlides.load("items");
-
-      const slideCount = selectedSlides.getCount();
-
-      await context.sync();
-
-      if (slideCount.value === 0) {
-        result.textContent = "現在のスライドを取得できませんでした。";
-        return;
-      }
-
-      const slide = selectedSlides.items[0];
-      const shapes = slide.shapes;
-      shapes.load("items");
-
-      await context.sync();
-
-      const grouped = {};
-      let checkedShapeCount = 0;
-      let matchedCodeCount = 0;
-
-      for (const shape of shapes.items) {
-        try {
-          const textFrame = shape.getTextFrameOrNullObject();
-          textFrame.load("hasText");
-
-          await context.sync();
-
-          if (textFrame.isNullObject || !textFrame.hasText) continue;
-
-          checkedShapeCount++;
-
-          const textRange = textFrame.textRange;
-          textRange.load("text");
-
-          await context.sync();
-
-          const text = textRange.text || "";
-          if (!text) continue;
-
-          const targetColorText = await extractTextByColor(context, textRange, text, targetColor);
-          const codeMatches = targetColorText.match(/\b[A-Z]-\d+\b/g);
-
-          if (!codeMatches) continue;
-
-          for (const code of codeMatches) {
-            const match = code.match(/^([A-Z])-(\d+)$/);
-            if (!match) continue;
-
-            const letter = match[1];
-            const number = Number(match[2]);
-
-            if (!grouped[letter]) grouped[letter] = [];
-
-            grouped[letter].push(number);
-            matchedCodeCount++;
-          }
-        } catch (shapeError) {
-          console.warn("この図形はスキップしました:", shapeError);
-        }
-      }
-
-      const outputLines = [];
-      const letters = Object.keys(grouped).sort();
-
-      for (const letter of letters) {
-        const uniqueSortedNumbers = [...new Set(grouped[letter])].sort((a, b) => a - b);
-        const compressed = compressNumberRanges(uniqueSortedNumbers);
-        outputLines.push(`${letter}-${compressed}`);
-      }
-
-      if (outputLines.length === 0) {
-        result.innerHTML = `
-          <div><strong>結果：</strong>該当する番号はありません。</div>
-          <div><strong>確認したテキスト図形数：</strong>${checkedShapeCount}</div>
-        `;
-        return;
-      }
-
-      result.innerHTML = `
-        <div><strong>出力結果：</strong></div>
-        <pre class="outputText">${escapeHtml(outputLines.join("\n"))}</pre>
-        <div><strong>取得した番号数：</strong>${matchedCodeCount}</div>
-        <div><strong>確認したテキスト図形数：</strong>${checkedShapeCount}</div>
-      `;
+    const textShapes = await getTextShapes(context, slide, {
+      includeFillColor: true
     });
-  } catch (error) {
-    console.error(error);
-    result.textContent = "エラー：" + error.message;
-  }
+
+    const targetShapes = textShapes.filter(
+      (item) => item.fillColor === targetFillColor
+    );
+
+    const numbers = [];
+
+    for (const item of targetShapes) {
+      const coloredText = await extractTextByColor(
+        context,
+        item.textRange,
+        item.text,
+        targetTextColor
+      );
+
+      numbers.push(...extractNumbers(coloredText));
+    }
+
+    renderNumberSummary({
+      total: sum(numbers),
+      numbers,
+      checkedShapeCount: textShapes.length,
+      matchedShapeCount: targetShapes.length
+    });
+  });
 }
 
+/**
+ * 指定色の A-1 形式コードを、アルファベットごとに連番圧縮する。
+ */
+async function formatCodesByTextColor(targetTextColor, label) {
+  setStatus(`対象色：${label}`, "整理中...");
+
+  await PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return;
+
+    const textShapes = await getTextShapes(context, slide);
+    const grouped = {};
+    let matchedCodeCount = 0;
+
+    for (const item of textShapes) {
+      const coloredText = await extractTextByColor(
+        context,
+        item.textRange,
+        item.text,
+        targetTextColor
+      );
+
+      for (const code of extractLetterCodes(coloredText)) {
+        if (!grouped[code.letter]) grouped[code.letter] = [];
+        grouped[code.letter].push(code.number);
+        matchedCodeCount++;
+      }
+    }
+
+    renderCodeSummary({
+      grouped,
+      matchedCodeCount,
+      checkedShapeCount: textShapes.length
+    });
+  });
+}
+
+/**
+ * 現在選択中のテキスト情報を取得する。
+ * 複数図形選択時はエラーとして返す。
+ */
+async function getSelectedTextInfo() {
+  return PowerPoint.run(async (context) => {
+    const selectedShapes = context.presentation.getSelectedShapes();
+    const selectedShapeCount = selectedShapes.getCount();
+
+    const selectedTextRange =
+      context.presentation.getSelectedTextRangeOrNullObject();
+
+    await context.sync();
+
+    if (selectedShapeCount.value > 1) {
+      return {
+        ok: false,
+        message: "複数選択されています。色を取得したいテキストを1つだけ選択してください。"
+      };
+    }
+
+    selectedTextRange.load("text");
+    selectedTextRange.font.load("color");
+
+    await context.sync();
+
+    if (selectedTextRange.isNullObject) {
+      return {
+        ok: false,
+        message: "テキストが選択されていません。色を取得したい文字を1つ選択してください。"
+      };
+    }
+
+    const selectedText = selectedTextRange.text || "";
+    const textColor = normalizeColor(selectedTextRange.font.color);
+
+    if (!selectedText.trim()) {
+      return {
+        ok: false,
+        message: "選択中のテキストが空です。色を取得したい文字を選択してください。"
+      };
+    }
+
+    if (!textColor) {
+      return {
+        ok: false,
+        message: "選択中テキストの文字色を取得できませんでした。1色の文字だけを選択してください。"
+      };
+    }
+
+    return { ok: true, textColor };
+  });
+}
+
+/**
+ * 現在選択中のテキスト色と図形の塗りつぶし色を取得する。
+ */
+async function getSelectedTextAndFillInfo() {
+  return PowerPoint.run(async (context) => {
+    const selectedShapes = context.presentation.getSelectedShapes();
+    selectedShapes.load("items");
+
+    const selectedShapeCount = selectedShapes.getCount();
+    const selectedTextRange =
+      context.presentation.getSelectedTextRangeOrNullObject();
+
+    await context.sync();
+
+    if (selectedShapeCount.value !== 1) {
+      return {
+        ok: false,
+        message: "文字色と背景色を取得したいテキストボックスを1つだけ選択してください。"
+      };
+    }
+
+    selectedTextRange.load("text");
+    selectedTextRange.font.load("color");
+
+    await context.sync();
+
+    if (selectedTextRange.isNullObject) {
+      return {
+        ok: false,
+        message: "テキストが選択されていません。色を取得したい文字を選択してください。"
+      };
+    }
+
+    const selectedText = selectedTextRange.text || "";
+    const textColor = normalizeColor(selectedTextRange.font.color);
+
+    if (!selectedText.trim()) {
+      return {
+        ok: false,
+        message: "選択中のテキストが空です。色を取得したい文字を選択してください。"
+      };
+    }
+
+    if (!textColor) {
+      return {
+        ok: false,
+        message: "選択中テキストの文字色を取得できませんでした。"
+      };
+    }
+
+    const fillColor = await getShapeFillColor(context, selectedShapes.items[0]);
+
+    if (!fillColor) {
+      return {
+        ok: false,
+        message: "選択中テキストボックスの背景色を取得できませんでした。単色の塗りつぶし色が設定されたテキストボックスを選択してください。"
+      };
+    }
+
+    return { ok: true, textColor, fillColor };
+  });
+}
+
+/**
+ * 現在選択中のスライドを1枚取得する。
+ */
+async function getCurrentSlide(context) {
+  const selectedSlides = context.presentation.getSelectedSlides();
+  selectedSlides.load("items");
+
+  const slideCount = selectedSlides.getCount();
+
+  await context.sync();
+
+  if (slideCount.value === 0) {
+    setResultText("現在のスライドを取得できませんでした。");
+    return null;
+  }
+
+  return selectedSlides.items[0];
+}
+
+/**
+ * スライド内のテキストを持つ図形を取得する。
+ * includeFillColor=true の場合は、図形の塗りつぶし色も取得する。
+ */
+async function getTextShapes(context, slide, options = {}) {
+  const shapes = slide.shapes;
+  shapes.load("items");
+
+  await context.sync();
+
+  const candidates = [];
+
+  for (const shape of shapes.items) {
+    try {
+      const textFrame = shape.getTextFrameOrNullObject();
+      textFrame.load("hasText");
+      candidates.push({ shape, textFrame });
+    } catch (error) {
+      console.warn("テキスト枠を取得できない図形をスキップしました:", error);
+    }
+  }
+
+  await context.sync();
+
+  const textShapes = [];
+
+  for (const item of candidates) {
+    if (item.textFrame.isNullObject || !item.textFrame.hasText) continue;
+
+    const textRange = item.textFrame.textRange;
+    textRange.load("text");
+
+    textShapes.push({
+      ...item,
+      textRange
+    });
+  }
+
+  await context.sync();
+
+  for (const item of textShapes) {
+    item.text = item.textRange.text || "";
+
+    if (options.includeFillColor) {
+      item.fillColor = await getShapeFillColor(context, item.shape);
+    }
+  }
+
+  return textShapes.filter((item) => item.text.length > 0);
+}
+
+/**
+ * 指定色の文字だけを抽出し、それ以外をスペースに置換する。
+ */
 async function extractTextByColor(context, textRange, text, targetColor) {
   const charRanges = [];
 
@@ -273,60 +505,167 @@ async function extractTextByColor(context, textRange, text, targetColor) {
 
   await context.sync();
 
-  let targetColorText = "";
+  return charRanges
+    .map((charRange) => {
+      const charText = charRange.text || "";
+      const color = normalizeColor(charRange.font.color);
 
-  for (const charRange of charRanges) {
-    const charText = charRange.text || "";
-    const color = normalizeColor(charRange.font.color);
+      return color === targetColor ? charText : " ";
+    })
+    .join("");
+}
 
-    if (color === targetColor) {
-      targetColorText += charText;
-    } else {
-      targetColorText += " ";
-    }
+async function getShapeFillColor(context, shape) {
+  try {
+    shape.fill.load("foregroundColor");
+    await context.sync();
+
+    return normalizeColor(shape.fill.foregroundColor);
+  } catch (error) {
+    console.warn("背景色を取得できない図形をスキップしました:", error);
+    return "";
   }
+}
 
-  return targetColorText;
+function extractNumbers(text) {
+  const matches = text.match(/-?\d+(?:\.\d+)?/g);
+
+  return matches
+    ? matches.map(Number).filter((value) => !Number.isNaN(value))
+    : [];
+}
+
+function extractLetterCodes(text) {
+  const matches = text.match(/\b[A-Z]-\d+\b/g);
+  if (!matches) return [];
+
+  return matches
+    .map((code) => code.match(/^([A-Z])-(\d+)$/))
+    .filter(Boolean)
+    .map((match) => ({
+      letter: match[1],
+      number: Number(match[2])
+    }));
 }
 
 function compressNumberRanges(numbers) {
   if (!numbers || numbers.length === 0) return "";
 
+  const sorted = [...new Set(numbers)].sort((a, b) => a - b);
   const ranges = [];
-  let start = numbers[0];
-  let prev = numbers[0];
 
-  for (let i = 1; i < numbers.length; i++) {
-    const current = numbers[i];
+  let start = sorted[0];
+  let previous = sorted[0];
 
-    if (current === prev + 1) {
-      prev = current;
+  for (let i = 1; i < sorted.length; i++) {
+    const current = sorted[i];
+
+    if (current === previous + 1) {
+      previous = current;
       continue;
     }
 
-    ranges.push(formatRange(start, prev));
+    ranges.push(formatRange(start, previous));
     start = current;
-    prev = current;
+    previous = current;
   }
 
-  ranges.push(formatRange(start, prev));
+  ranges.push(formatRange(start, previous));
 
   return ranges.join(", ");
 }
 
 function formatRange(start, end) {
-  if (start === end) return String(start);
-  return `${start}~${end}`;
+  return start === end ? String(start) : `${start}~${end}`;
+}
+
+function sum(numbers) {
+  return numbers.reduce((total, value) => total + value, 0);
 }
 
 function normalizeColor(color) {
   if (!color) return "";
 
-  let c = String(color).trim().toLowerCase();
+  let normalized = String(color).trim().toLowerCase();
 
-  if (/^[0-9a-f]{6}$/.test(c)) c = "#" + c;
+  if (/^[0-9a-f]{6}$/.test(normalized)) {
+    normalized = "#" + normalized;
+  }
 
-  return c;
+  return normalized;
+}
+
+function renderNumberSummary({
+  total,
+  numbers,
+  checkedShapeCount,
+  matchedShapeCount = null
+}) {
+  const matchedShapeHtml =
+    matchedShapeCount === null
+      ? ""
+      : `<div><strong>一致した背景色の図形数：</strong>${matchedShapeCount}</div>`;
+
+  setResultHtml(`
+    <div><strong>合計：</strong>${total}</div>
+    <div><strong>取得した数字：</strong>${numbers.length ? numbers.join(", ") : "なし"}</div>
+    ${matchedShapeHtml}
+    <div><strong>確認したテキスト図形数：</strong>${checkedShapeCount}</div>
+  `);
+}
+
+function renderCodeSummary({ grouped, matchedCodeCount, checkedShapeCount }) {
+  const outputLines = Object.keys(grouped)
+    .sort()
+    .map((letter) => `${letter}-${compressNumberRanges(grouped[letter])}`);
+
+  if (outputLines.length === 0) {
+    setResultHtml(`
+      <div><strong>結果：</strong>該当する番号はありません。</div>
+      <div><strong>確認したテキスト図形数：</strong>${checkedShapeCount}</div>
+    `);
+    return;
+  }
+
+  setResultHtml(`
+    <div><strong>出力結果：</strong></div>
+    <pre class="outputText">${escapeHtml(outputLines.join("\n"))}</pre>
+    <div><strong>取得した番号数：</strong>${matchedCodeCount}</div>
+    <div><strong>確認したテキスト図形数：</strong>${checkedShapeCount}</div>
+  `);
+}
+
+function createElement(tagName, options = {}) {
+  const element = document.createElement(tagName);
+
+  if (options.className) element.className = options.className;
+  if (options.textContent) element.textContent = options.textContent;
+
+  return element;
+}
+
+function setStatus(targetColorText, resultText) {
+  setElementText(UI.targetColor, targetColorText);
+  setResultText(resultText);
+}
+
+function setResultText(text) {
+  setElementText(UI.result, text);
+}
+
+function setResultHtml(html) {
+  const element = document.getElementById(UI.result);
+  if (element) element.innerHTML = html;
+}
+
+function setElementText(elementId, text) {
+  const element = document.getElementById(elementId);
+  if (element) element.textContent = text;
+}
+
+function getErrorMessage(error) {
+  if (!error) return "不明なエラー";
+  return error.message || String(error);
 }
 
 function escapeHtml(value) {

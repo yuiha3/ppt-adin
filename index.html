@@ -3,27 +3,117 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>テキスト集計アドイン</title>
+  <title>社内ツール</title>
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
-  <link rel="stylesheet" href="./style.css?v=5" />
+  <link rel="stylesheet" href="./style.css?v=9" />
 </head>
 <body>
   <main class="container">
-    <h1>テキスト集計</h1>
 
-    <p>現在のスライドから、指定した文字色の数字・番号を取得して集計します。</p>
-
-    <button id="sumButton" type="button">青文字の数字を集計</button>
-    <button id="sumGreenButton" type="button" class="greenButton">緑文字の数字を集計</button>
-    <button id="sumSelectedColorButton" type="button" class="selectedColorButton">選択中の文字色で数字を集計</button>
-    <button id="formatBlackCodeButton" type="button" class="blackButton">黒文字の番号を整理</button>
-
-    <div class="resultBox">
-      <div id="targetColor">対象色：未選択</div>
-      <div id="result">未集計</div>
+    <div class="app-header">
+      <h1>外壁調査ツール</h1>
+      <span class="header-badge">v1.0</span>
     </div>
+
+    <nav class="tabs" aria-label="機能切り替え">
+      <button id="summaryTabButton" class="tabButton active" type="button" data-tab-target="summaryTab">
+        集計
+      </button>
+      <button id="tableTabButton" class="tabButton" type="button" data-tab-target="tableTab">
+        表作成
+      </button>
+    </nav>
+
+    <!-- 集計タブ -->
+    <section id="summaryTab" class="tabContent active">
+
+      <p class="section-label">固定色で集計</p>
+      <div class="action-list">
+        <button id="sumBlueButton" type="button" class="action-btn blue">
+          <span class="btn-dot"></span>
+          <span class="btn-label">
+            青文字の数字を集計
+            <span class="btn-sub">RGB(0, 112, 192)</span>
+          </span>
+        </button>
+        <button id="sumGreenButton" type="button" class="action-btn green">
+          <span class="btn-dot"></span>
+          <span class="btn-label">
+            緑文字の数字を集計
+            <span class="btn-sub">RGB(0, 176, 80)</span>
+          </span>
+        </button>
+      </div>
+
+      <div class="divider"></div>
+      <p class="section-label">選択色で集計</p>
+      <div class="action-list">
+        <button id="sumSelectedColorButton" type="button" class="action-btn purple">
+          <span class="btn-dot"></span>
+          <span class="btn-label">
+            選択中の文字色で集計
+            <span class="btn-sub">文字を選択してから実行</span>
+          </span>
+        </button>
+        <button id="sumSelectedTextAndFillColorButton" type="button" class="action-btn teal">
+          <span class="btn-dot"></span>
+          <span class="btn-label">
+            文字色＋背景色で集計
+            <span class="btn-sub">文字を選択してから実行</span>
+          </span>
+        </button>
+      </div>
+
+      <div class="divider"></div>
+      <p class="section-label">番号整理</p>
+      <div class="action-list">
+        <button id="formatBlackCodeButton" type="button" class="action-btn dark">
+          <span class="btn-dot"></span>
+          <span class="btn-label">
+            黒文字の番号を整理
+            <span class="btn-sub">A-1, A-2 … をまとめて出力</span>
+          </span>
+        </button>
+      </div>
+
+      <div class="result-box">
+        <div class="result-box-header">
+          <span class="result-label-text">結果</span>
+          <span id="targetColor">対象色：未選択</span>
+        </div>
+        <div class="result-body">
+          <div id="result">未集計</div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 表作成タブ -->
+    <section id="tableTab" class="tabContent">
+
+      <p class="tab-description">補修項目をボタンで追加し、数量を入力してください。</p>
+
+      <p class="section-label">補修項目を追加</p>
+      <div id="defectButtonGrid" class="defectButtonGrid"></div>
+
+      <div class="tableHeader" aria-hidden="true">
+        <div>内容</div>
+        <div>数量</div>
+        <div>単位</div>
+      </div>
+
+      <div id="tableRows" class="tableRows"></div>
+
+      <div class="tableActionArea">
+        <button id="clearTableRowsButton" type="button" class="clear-btn">
+          行をすべて削除
+        </button>
+      </div>
+
+    </section>
+
   </main>
 
-  <script src="./taskpane.js?v=5"></script>
+  <script src="./taskpane.js?v=9"></script>
 </body>
 </html>
