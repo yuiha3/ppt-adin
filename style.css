@@ -307,7 +307,6 @@ body {
    ============================================= */
 .tableHeader {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 0.8fr;
   gap: 4px;
   padding: 5px 4px;
   font-size: 10px;
@@ -327,7 +326,6 @@ body {
 
 .tableInputRow {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 0.8fr;
   gap: 4px;
 }
 
@@ -387,4 +385,37 @@ body {
   height: 1px;
   background: #e5e7eb;
   margin: 10px 0;
+}
+
+/* =============================================
+   Row Delete Button
+   ============================================= */
+.tableHeader,
+.tableInputRow {
+  grid-template-columns: 1.5fr 1fr 0.8fr 24px;
+}
+
+.row-delete-btn {
+  width: 24px;
+  height: 100%;
+  min-height: 30px;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #d1d5db;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.row-delete-btn:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #ef4444;
 }

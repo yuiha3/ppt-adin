@@ -106,6 +106,12 @@ function addTableRow({ content, unit }) {
     placeholder: "数量"
   });
 
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "row-delete-btn";
+  deleteButton.textContent = "×";
+  deleteButton.addEventListener("click", () => row.remove());
+
   row.append(
     createTableInput({
       value: content,
@@ -115,7 +121,8 @@ function addTableRow({ content, unit }) {
     createTableInput({
       value: unit,
       className: "unitInput"
-    })
+    }),
+    deleteButton
   );
 
   tableRows.appendChild(row);
