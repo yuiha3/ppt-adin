@@ -634,7 +634,12 @@ function renderNumberSummary({
 }
 
 function renderCodeSummary({ grouped, matchedCodeCount, checkedShapeCount, color = null }) {
-  setResultValue(matchedCodeCount, color);
+  const outputLines = Object.keys(grouped)
+    .sort()
+    .map((letter) => `${letter}-${compressNumberRanges(grouped[letter])}`);
+
+  const outputText = outputLines.length > 0 ? outputLines.join("\n") : "該当なし";
+  setResultCode(outputText, color);
 }
 
 function createElement(tagName, options = {}) {
@@ -663,6 +668,21 @@ function setResultValue(value, color = null) {
     element.style.color = color || "";
   }
   updateCopyButton(typeof value === "number" ? value : null);
+}
+
+function setResultCode(text, color = null) {
+  const element = document.getElementById(UI.result);
+  if (element) {
+    element.style.color = color || "";
+  }
+  // 整形済みテキストをpreタグで表示
+  setResultHtml(`<pre class="outputText" style="color:${color || "inherit"}">${escapeHtml(text)}</pre>`);
+  // コピーボタンにテキストをセット
+  const btn = document.getElementById("copyResultButton");
+  if (btn) {
+    btn.disabled = false;
+    btn.dataset.copyValue = text;
+  }
 }
 
 function setResultHtml(html) {

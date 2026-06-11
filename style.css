@@ -428,11 +428,11 @@ html, body {
 }
 
 body {
-  padding-bottom: 80px; /* footerの実高さに合わせて余白確保 */
+  padding-bottom: 100px; /* footerの実高さ＋余裕を確保 */
 }
 
 .scroll-pad {
-  height: 16px; /* ボタンとfooterの間に追加余白 */
+  height: 24px; /* ボタンとfooterの間に追加余白 */
 }
 
 .result-footer {
@@ -461,6 +461,22 @@ body {
   letter-spacing: -0.02em;
   line-height: 1.1;
   text-align: center;
+  overflow: hidden;
+}
+
+/* 写真番号整理の出力テキスト */
+.result-total .outputText {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.7;
+  text-align: left;
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
 }
 
 .copy-btn {
