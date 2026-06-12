@@ -292,27 +292,22 @@ async function outputTableToSlide() {
 
     const rowCount  = rows.length + 1;   // ヘッダー + データ
     const headers   = ["内容", "数量", "単位"];
-    // addTable の座標・サイズは EMU 単位（1pt = 12700 EMU）
-    const PT_EMU    = 12700;
-    const colWidths = [80, 60, 105];     // pt（列幅・行高はpt単位で渡す）
-    const rowHeight = 13.5;              // pt
-    const tableLeft = 30  * PT_EMU;
-    const tableTop  = 120 * PT_EMU;
-    const tableW    = colWidths.reduce((a, b) => a + b, 0) * PT_EMU;
-    const tableH    = Math.round(rowHeight * rowCount * PT_EMU);
+    const PT        = 12700;         // 1pt = 12700 EMU（OOXML用）
+    const colWidths = [80, 60, 105]; // pt
+    const rowHeight = 13.5;          // pt
 
-    const tableShape = slide.shapes.addTable(rowCount, 3, {
-      left:   tableLeft,
-      top:    tableTop,
-      width:  tableW,
-      height: tableH
-    });
+    // addTable は (rowCount, columnCount) の2引数のみ
+    const tableShape = slide.shapes.addTable(rowCount, 3);
 
     await context.sync();
 
+    // 位置・サイズはプロパティで設定（pt単位）
+    tableShape.left = 30;
+    tableShape.top  = 120;
+
     const table = tableShape.table;
 
-    // 列幅・行高は pt 単位（EMU ではない）
+    // 列幅・行高（pt単位）
     for (let c = 0; c < 3; c++) {
       table.columns.getItemAt(c).width = colWidths[c];
     }
