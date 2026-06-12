@@ -746,10 +746,14 @@ async function sumNumbersByTextColor(targetTextColor) {
     if (!slide) return;
 
     const numbers = [];
+    const hitIds  = [];
     for (const item of await getTextShapes(context, slide)) {
       const coloredText = await extractTextByColor(context, item.textRange, item.text, targetTextColor);
-      numbers.push(...extractNumbers(coloredText));
+      const found = extractNumbers(coloredText);
+      if (found.length > 0) { numbers.push(...found); hitIds.push(item.shapeId); }
     }
+
+    if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
 
     const total = String(sum(numbers));
     setResult({ text: total, color: targetTextColor, copyValue: total });
@@ -779,15 +783,19 @@ async function sumAreaBySelectedTextColor() {
     if (!slide) return;
 
     let total = 0;
+    const hitIds = [];
     for (const item of await getTextShapes(context, slide)) {
       const coloredText = await extractTextByColor(
         context, item.textRange, item.text, selected.textColor
       );
-      total += extractAreaValues(coloredText);
+      const found = extractAreaValues(coloredText);
+      if (found > 0) { total += found; hitIds.push(item.shapeId); }
     }
 
-    const result = Math.ceil(total * 100) / 100;  // 小数点以下3桁目を繰り上げ
-    const resultStr = result.toFixed(2);           // 小数点以下2桁で表示
+    if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
+
+    const result    = Math.ceil(total * 100) / 100;
+    const resultStr = result.toFixed(2);
     setResult({ text: resultStr, color: selected.textColor, copyValue: resultStr });
   });
 }
@@ -817,11 +825,15 @@ async function sumNumbersBySelectedTextColorAndFillColor() {
     if (!slide) return;
 
     const numbers = [];
+    const hitIds  = [];
     for (const item of (await getTextShapes(context, slide, { includeFillColor: true }))
         .filter((s) => s.fillColor === selected.fillColor)) {
       const coloredText = await extractTextByColor(context, item.textRange, item.text, selected.textColor);
-      numbers.push(...extractNumbers(coloredText));
+      const found = extractNumbers(coloredText);
+      if (found.length > 0) { numbers.push(...found); hitIds.push(item.shapeId); }
     }
+
+    if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
 
     const total = String(sum(numbers));
     setResult({ text: total, color: selected.textColor, copyValue: total });
@@ -839,10 +851,15 @@ async function sumNumbersByColorDirect(targetTextColor, targetFillColor) {
       : textShapes;
 
     const numbers = [];
+    const hitIds  = [];
     for (const item of targets) {
       const coloredText = await extractTextByColor(context, item.textRange, item.text, targetTextColor);
-      numbers.push(...extractNumbers(coloredText));
+      const found = extractNumbers(coloredText);
+      if (found.length > 0) { numbers.push(...found); hitIds.push(item.shapeId); }
     }
+
+    if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
+
     return sum(numbers);
   });
 }
@@ -997,8 +1014,13 @@ async function getTextShapes(context, slide, options = {}) {
   }
   await context.sync();
 
+  // shapeId を事前にロード
+  textShapes.forEach((item) => item.shape.load("id"));
+  await context.sync();
+
   for (const item of textShapes) {
-    item.text = item.textRange.text || "";
+    item.text    = item.textRange.text || "";
+    item.shapeId = item.shape.id;
     if (options.includeFillColor) {
       item.fillColor = await getShapeFillColor(context, item.shape);
     }
