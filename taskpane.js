@@ -605,6 +605,13 @@ async function outputTableToSlide(includeQuantity = false) {
 
   setResult({ text: "出力中..." });
 
+  // 集計表出力時：各DOM行の上の丸（フォント色）を取得しておく
+  const fontColors = includeQuantity
+    ? [...document.querySelectorAll(".tableInputRow")].map((domRow) =>
+        domRow.querySelector(".color-dot[data-color-type='font']")?.dataset.color ?? null
+      )
+    : [];
+
   await PowerPoint.run(async (context) => {
     const slide = await getCurrentSlide(context);
     if (!slide) return;
@@ -643,6 +650,17 @@ async function outputTableToSlide(includeQuantity = false) {
         const borders = isHeader
           ? { top: noBorder, left: noBorder, right: noBorder, bottom: solidBorder }
           : { top: solidBorder, left: solidBorder, right: solidBorder, bottom: solidBorder };
+
+        // 集計表出力かつデータ行の数量列（c=1）：フォント色を適用
+        if (includeQuantity && !isHeader && c === 1) {
+          const rawColor = fontColors[r - 1];
+          // Office.js の font.color は # なしの6桁HEX
+          const fontColor = rawColor
+            ? rawColor.replace("#", "")
+            : "000000";
+          return { ...cellStyle, font: { ...cellStyle.font, color: fontColor }, borders };
+        }
+
         return { ...cellStyle, borders };
       });
     });
