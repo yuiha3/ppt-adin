@@ -119,7 +119,8 @@ function renderDefectButtons() {
     // <details> 折りたたみで各ジャンルを表示（最初のグループは開いた状態）
     const details = document.createElement("details");
     details.className = "defect-group";
-    if (groupIdx === 0) details.open = true;
+    // 塗装面（label === "塗装面"）以外は最初から開いた状態
+    if (label !== "塗装面") details.open = true;
 
     const summary = document.createElement("summary");
     summary.textContent = label;

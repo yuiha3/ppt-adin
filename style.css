@@ -171,7 +171,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 12px 0 8px;
+  margin: 18px 0 10px;
 }
 
 .section-divider::before,
@@ -349,7 +349,8 @@
   border-radius: 4px;
 }
 
-.quantityInput  { text-align: right; }
+.quantityInput  { text-align: center; }
+.unitInput      { text-align: center; }
 
 /* textareaの数量欄 */
 .quantityTextarea {
@@ -475,10 +476,10 @@
    Table Action
    ============================================= */
 .tableActionArea {
-  margin-top: 8px;
+  margin-top: 14px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 8px;
 }
 
 /* 自動集計・凡例表出力・集計表出力の3列ボタン */
@@ -487,12 +488,6 @@
   grid-template-columns: 1fr 1fr 1fr;
   gap: 4px;
 }
-
-.output-btn--sub {
-  background: #6b7280;
-}
-.output-btn--sub:hover  { background: #4b5563; }
-.output-btn--sub:active { background: #374151; }
 
 .output-btn {
   width: 100%;
@@ -513,6 +508,12 @@
 
 .output-btn:hover  { background: #005fa3; }
 .output-btn:active { background: #004f8a; }
+
+.output-btn--sub {
+  background: #6b7280;
+}
+.output-btn--sub:hover  { background: #4b5563; }
+.output-btn--sub:active { background: #374151; }
 
 .output-btn--green {
   background: #059669;
