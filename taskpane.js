@@ -466,7 +466,15 @@ function bindClick(elementId, handler) {
       await handler();
     } catch (error) {
       console.error(error);
-      const msg = error?.message ?? String(error);
+      const parts = [
+        error?.message     ?? "",
+        error?.code        ?? "",
+        error?.name        ?? "",
+        error?.debugInfo   ? JSON.stringify(error.debugInfo)   : "",
+        error?.innerError  ? JSON.stringify(error.innerError)  : "",
+        error?.traceMessages ? error.traceMessages.join(" / ") : "",
+      ].filter(Boolean);
+      const msg = parts.join(" | ") || String(error);
       setResult({ text: "エラー：" + msg });
       await placeErrorTextOnSlide(msg);
     }
