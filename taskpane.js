@@ -140,27 +140,18 @@ async function loadPdf(file) {
       const TARGET_SCALE = 8.0;
       const viewport = page.getViewport({ scale: TARGET_SCALE });
 
-      // Canvasの物理ピクセルサイズ（整数に丸める）
-      const canvasWidth  = Math.floor(viewport.width);
-      const canvasHeight = Math.floor(viewport.height);
+      // Canvasサイズをviewportと完全一致させる（transform不要）
+      // Math.floorによるわずかなずれもなくすためceil→整数化
+      const canvasWidth  = Math.ceil(viewport.width);
+      const canvasHeight = Math.ceil(viewport.height);
 
       const canvas = document.createElement("canvas");
       canvas.width  = canvasWidth;
       canvas.height = canvasHeight;
 
-      const ctx = canvas.getContext("2d");
-      // transformで物理Canvasサイズとviewportのずれを補正し、
-      // pdf.jsの内部スケール縮小によるクリッピングを防ぐ
-      const scaleX = canvasWidth  / viewport.width;
-      const scaleY = canvasHeight / viewport.height;
-      const transform = (scaleX !== 1 || scaleY !== 1)
-        ? [scaleX, 0, 0, scaleY, 0, 0]
-        : null;
-
       await page.render({
-        canvasContext: ctx,
-        viewport,
-        ...(transform ? { transform } : {})
+        canvasContext: canvas.getContext("2d"),
+        viewport
       }).promise;
 
       const base64 = canvas.toDataURL("image/png").split(",")[1];
