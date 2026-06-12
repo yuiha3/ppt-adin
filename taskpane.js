@@ -204,8 +204,16 @@ async function insertPdfToSlides() {
       for (let i = 0; i < pdfPageImages.length; i++) {
         showPdfStatus(`挿入中: ${i + 1} / ${pdfPageImages.length} ページ`, "info");
 
-        // 新しいスライドを末尾に追加（最初の1枚目はカレントスライドの後に追加）
-        const newSlide = slides.add();
+        // 追加前のスライド数を取得（add()はvoidを返すため、インデックスで取得する）
+        const slideCount = slides.getCount();
+        await context.sync();
+
+        slides.add();
+        await context.sync();
+
+        // 追加後のスライドは追加前の件数のインデックスに存在する（0-based）
+        const newSlide = slides.getItemAt(slideCount.value);
+        newSlide.load("shapes");
         await context.sync();
 
         // スライド全体を覆う矩形を追加して画像で塗りつぶす
@@ -217,9 +225,8 @@ async function insertPdfToSlides() {
         });
         await context.sync();
 
-        // 枠線を透明にする
+        // 枠線を非表示にして画像で塗りつぶす
         shape.lineFormat.visible = false;
-        // 画像で塗りつぶす（#なしの純粋なbase64）
         shape.fill.setImage(pdfPageImages[i].base64);
         await context.sync();
       }
