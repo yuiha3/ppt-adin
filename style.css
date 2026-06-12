@@ -322,6 +322,11 @@
   transform: scale(1.2);
 }
 
+.handle-col--hidden .color-dot {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* =============================================
    Color Picker Popup
    ============================================= */

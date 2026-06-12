@@ -13,23 +13,23 @@ const DEFECT_GROUPS = [
   {
     label: "タイル面",
     items: [
-      { content: "タイル割れ",     unit: "枚数" },
-      { content: "タイル浮き",     unit: "枚数" },
-      { content: "タイル陶片浮き", unit: "枚数" },
-      { content: "タイル下地浮き", unit: "枚数" },
-      { content: "タイル欠損",     unit: "枚数" },
-      { content: "タイル剝落",     unit: "枚数" },
+      { label: "割れ",     content: "タイル割れ",     unit: "枚数" },
+      { label: "浮き",     content: "タイル浮き",     unit: "枚数" },
+      { label: "陶片浮き", content: "タイル陶片浮き", unit: "枚数" },
+      { label: "下地浮き", content: "タイル下地浮き", unit: "枚数" },
+      { label: "欠損",     content: "タイル欠損",     unit: "枚数" },
+      { label: "剝落",     content: "タイル剝落",     unit: "枚数" },
     ]
   },
   {
     label: "塗装面",
     items: [
-      { content: "塗装面ひび割れ 0.3mm未満", unit: "長さ（m）"  },
-      { content: "塗装面ひび割れ 0.3mm以上", unit: "長さ（m）"  },
-      { content: "塗装面亀甲割れ",           unit: "面積（㎡）" },
-      { content: "塗膜浮き",                 unit: "面積（㎡）" },
-      { content: "塗膜剥離",                 unit: "面積（㎡）" },
-      { content: "塗装面モルタル浮き",       unit: "面積（㎡）" },
+      { label: "ひび割れ 0.3mm未満", content: "塗装面ひび割れ 0.3mm未満", unit: "長さ（m）"  },
+      { label: "ひび割れ 0.3mm以上", content: "塗装面ひび割れ 0.3mm以上", unit: "長さ（m）"  },
+      { label: "亀甲割れ",           content: "塗装面亀甲割れ",           unit: "面積（㎡）" },
+      { label: "塗膜浮き",           content: "塗膜浮き",                 unit: "面積（㎡）" },
+      { label: "塗膜剥離",           content: "塗膜剥離",                 unit: "面積（㎡）" },
+      { label: "モルタル浮き",       content: "塗装面モルタル浮き",       unit: "面積（㎡）" },
     ]
   },
   {
@@ -151,7 +151,7 @@ function renderDefectButtons() {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "defectButton";
-      button.textContent = item.content;
+      button.textContent = item.label ?? item.content;
       button.addEventListener("click", () => addTableRow(item));
       container.appendChild(button);
     });
@@ -196,6 +196,7 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
   dotBottom.addEventListener("click", () => openColorPicker(dotBottom, "fill"));
 
   handleCol.append(dotTop, dotBottom);
+  if (noUnit) handleCol.classList.add("handle-col--hidden");
 
   const quantityEl = noUnit
     ? Object.assign(document.createElement("textarea"), {
