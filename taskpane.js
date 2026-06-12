@@ -61,12 +61,13 @@ Office.onReady(() => {
 // ─── 初期化 ──────────────────────────────────────────────
 
 function initializeSummaryButtons() {
-  bindClick("sumBlueButton",  () => sumNumbersByTextColor(COLORS.BLUE,  "青文字 RGB(0,112,192)"));
-  bindClick("sumGreenButton", () => sumNumbersByTextColor(COLORS.GREEN, "緑文字 RGB(0,176,80)"));
+  bindClick("sumBlueButton",  () => sumNumbersByTextColor(COLORS.BLUE));
+  bindClick("sumGreenButton", () => sumNumbersByTextColor(COLORS.GREEN));
   bindClick("sumSelectedColorButton",           sumNumbersBySelectedTextColor);
   bindClick("sumSelectedTextAndFillColorButton", sumNumbersBySelectedTextColorAndFillColor);
   bindClick("formatBlackCodeButton",            () => formatCodesByTextColor(COLORS.BLACK, false));
   bindClick("formatAllSlidesBlackCodeButton",   () => formatCodesByTextColor(COLORS.BLACK, true));
+  bindClick("sumAreaByColorButton",             sumAreaBySelectedTextColor);
 
   const copyBtn = document.getElementById(UI.copyButton);
   if (!copyBtn) return;
@@ -115,11 +116,9 @@ function renderDefectButtons() {
   const container = document.getElementById("defectButtonGrid");
   if (!container) return;
 
-  DEFECT_GROUPS.forEach(({ label, items }, groupIdx) => {
-    // <details> 折りたたみで各ジャンルを表示（最初のグループは開いた状態）
+  DEFECT_GROUPS.forEach(({ label, items }) => {
     const details = document.createElement("details");
     details.className = "defect-group";
-    // 塗装面（label === "塗装面"）以外は最初から開いた状態
     if (label !== "塗装面") details.open = true;
 
     const summary = document.createElement("summary");
@@ -269,44 +268,31 @@ function createTableInput({ value = "", className = "", placeholder = "", inputm
 }
 
 function clearTableRows() {
-  // 行がなければそのまま終了
   const container = document.getElementById("tableRows");
   if (!container || container.children.length === 0) return;
 
   showConfirmDialog(
     "行をすべて削除しますか？",
     "追加された行がすべて削除されます。この操作は元に戻せません。",
+    "削除する",
     () => container.replaceChildren()
   );
 }
 
 /**
  * 確認ダイアログを表示する。
- * @param {string}   title    - タイトル
- * @param {string}   message  - 説明文
- * @param {Function} onConfirm - 確認ボタン押下時のコールバック
+ * @param {string}   title        - タイトル
+ * @param {string}   message      - 説明文
+ * @param {string}   confirmLabel - 確認ボタンのラベル
+ * @param {Function} onConfirm    - 確認ボタン押下時のコールバック
  */
-function showConfirmDialog(title, message, onConfirm) {
-  // 既存のダイアログを閉じる
+function showConfirmDialog(title, message, confirmLabel, onConfirm) {
   document.getElementById("confirmDialog")?.remove();
 
   const overlay = document.createElement("div");
   overlay.id = "confirmDialog";
   overlay.className = "confirm-overlay";
-
-  const dialog = document.createElement("div");
-  dialog.className = "confirm-dialog";
-
-  const titleEl = document.createElement("p");
-  titleEl.className = "confirm-dialog__title";
-  titleEl.textContent = title;
-
-  const messageEl = document.createElement("p");
-  messageEl.className = "confirm-dialog__message";
-  messageEl.textContent = message;
-
-  const btnRow = document.createElement("div");
-  btnRow.className = "confirm-dialog__buttons";
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
 
   const cancelBtn = Object.assign(document.createElement("button"), {
     type: "button", className: "confirm-cancel-btn", textContent: "キャンセル"
@@ -314,20 +300,24 @@ function showConfirmDialog(title, message, onConfirm) {
   cancelBtn.addEventListener("click", () => overlay.remove());
 
   const confirmBtn = Object.assign(document.createElement("button"), {
-    type: "button", className: "confirm-ok-btn", textContent: "削除する"
+    type: "button", className: "confirm-ok-btn", textContent: confirmLabel
   });
-  confirmBtn.addEventListener("click", () => {
-    overlay.remove();
-    onConfirm();
-  });
+  confirmBtn.addEventListener("click", () => { overlay.remove(); onConfirm(); });
 
+  const btnRow = document.createElement("div");
+  btnRow.className = "confirm-dialog__buttons";
   btnRow.append(cancelBtn, confirmBtn);
-  dialog.append(titleEl, messageEl, btnRow);
+
+  const dialog = document.createElement("div");
+  dialog.className = "confirm-dialog";
+  dialog.append(
+    Object.assign(document.createElement("p"), { className: "confirm-dialog__title",   textContent: title }),
+    Object.assign(document.createElement("p"), { className: "confirm-dialog__message", textContent: message }),
+    btnRow
+  );
+
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
-
-  // 外側クリックで閉じる
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
 }
 
 // ─── 自動集計ポップアップ ─────────────────────────────────
@@ -348,18 +338,14 @@ function openAutoSumPopup() {
   const inner = document.createElement("div");
   inner.className = "autosum-popup__inner";
 
-  const header = document.createElement("div");
-  header.className = "autosum-popup__header";
-  header.textContent = "自動集計";
-  inner.appendChild(header);
+  inner.append(
+    Object.assign(document.createElement("div"), { className: "autosum-popup__header", textContent: "自動集計" })
+  );
 
   const body = document.createElement("div");
   body.className = "autosum-popup__body";
   rows.forEach((rowData, i) => body.appendChild(makeAutoSumRow(rowData, i, tableRowEls)));
   inner.appendChild(body);
-
-  const footer = document.createElement("div");
-  footer.className = "autosum-popup__footer";
 
   const runBtn = Object.assign(document.createElement("button"), {
     type: "button", className: "autosum-run-btn", textContent: "集計実行"
@@ -375,7 +361,10 @@ function openAutoSumPopup() {
   });
   closeBtn.addEventListener("click", closeAutoSumPopup);
 
+  const footer = document.createElement("div");
+  footer.className = "autosum-popup__footer";
   footer.append(runBtn, closeBtn);
+
   inner.appendChild(footer);
   overlay.appendChild(inner);
   document.body.appendChild(overlay);
@@ -394,13 +383,12 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
   rowEl.className = "autosum-row";
   rowEl.dataset.rowIndex = String(index);
 
-  // 丸2つ
   const dots = document.createElement("div");
   dots.className = showDots ? "autosum-dots" : "autosum-dots autosum-dots--hidden";
 
-  const makeDotWithSync = (type, color) => {
-    const d = makeColorDot(type, color, showDots ? () => {
-      openColorPicker(d, type, (selected) => {
+  const makeDotWithSync = (type, color) =>
+    makeColorDot(type, color, showDots ? () => {
+      openColorPicker(dots.querySelector(`[data-color-type='${type}']`), type, (selected) => {
         // 元DOM行の丸にも反映
         const target = domRow?.querySelector(`.color-dot[data-color-type='${type}']`);
         if (target) { target.style.background = selected; target.dataset.color = selected; }
@@ -412,27 +400,21 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
         }
       });
     } : null);
-    return d;
-  };
 
   dots.append(makeDotWithSync("font", fontColor), makeDotWithSync("fill", fillColor));
-  rowEl.appendChild(dots);
 
-  // 内容テキスト
-  const content = document.createElement("span");
-  content.className = "autosum-content";
-  content.textContent = rowData.content;
+  const content = Object.assign(document.createElement("span"), {
+    className: "autosum-content", textContent: rowData.content
+  });
   if (fontColor) content.style.color = fontColor;
   if (fillColor) content.style.background = fillColor;
-  rowEl.appendChild(content);
 
-  // ポップアップ内削除ボタン
   const delBtn = Object.assign(document.createElement("button"), {
     type: "button", className: "autosum-delete-btn", textContent: "×"
   });
   delBtn.addEventListener("click", () => rowEl.remove());
-  rowEl.appendChild(delBtn);
 
+  rowEl.append(dots, content, delBtn);
   return rowEl;
 }
 
@@ -488,17 +470,14 @@ async function openColorPicker(dotEl, colorType, onSelect = null) {
   const popup = document.createElement("div");
   popup.id = "colorPickerPopup";
   popup.className = "color-picker-popup";
-
-  const titleEl = document.createElement("p");
-  titleEl.className = "color-picker-title";
-  titleEl.textContent = title;
-  popup.appendChild(titleEl);
+  popup.append(
+    Object.assign(document.createElement("p"), { className: "color-picker-title", textContent: title })
+  );
 
   if (colors.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "color-picker-empty";
-    empty.textContent = "色が見つかりませんでした";
-    popup.appendChild(empty);
+    popup.append(
+      Object.assign(document.createElement("p"), { className: "color-picker-empty", textContent: "色が見つかりませんでした" })
+    );
   } else {
     const grid = document.createElement("div");
     grid.className = "color-picker-grid";
@@ -557,18 +536,14 @@ async function collectSlideColors(colorType) {
     const colorSet = new Set();
 
     if (colorType === "fill") {
-      for (const shape of shapes.items) {
-        shape.fill.load("foregroundColor");
-      }
+      shapes.items.forEach((s) => s.fill.load("foregroundColor"));
       await context.sync();
-      for (const shape of shapes.items) {
-        const c = normalizeColor(shape.fill.foregroundColor);
+      shapes.items.forEach((s) => {
+        const c = normalizeColor(s.fill.foregroundColor);
         if (c && c !== "#ffffff" && c !== "#000000") colorSet.add(c);
-      }
+      });
     } else {
-      // フォント色：getTextShapes を流用して文字色を収集
-      const textShapes = await getTextShapes(context, slide);
-      for (const item of textShapes) {
+      for (const item of await getTextShapes(context, slide)) {
         const charRanges = Array.from({ length: Math.min(item.text.length, 200) }, (_, i) => {
           const cr = item.textRange.getSubstring(i, 1);
           cr.font.load("color");
@@ -595,7 +570,7 @@ async function collectSlideColors(colorType) {
  *   列：内容 80pt / 数量 60pt / 単位 105pt
  *   1行目：ヘッダー（下罫線のみ）
  *   2行目以降：全罫線 黒 1pt
- *   全セル：背景白、余白 上下0 左5pt、垂直中央、フォント9pt 黒 太字 メイリオ
+ *   全セル：背景白、余白 上下0 左5pt、下寄せ、フォント9pt 黒 太字 メイリオ
  *   行高さ：13.5pt
  */
 async function outputTableToSlide(includeQuantity = false) {
@@ -617,7 +592,6 @@ async function outputTableToSlide(includeQuantity = false) {
     if (!slide) return;
 
     const rowCount  = rows.length + 1;
-    const headers   = [includeQuantity ? "＜集計＞" : "＜凡例＞", "", ""];
     const colWidths = [80, 60, 105];
     const rowHeight = 13.5;
 
@@ -629,47 +603,44 @@ async function outputTableToSlide(includeQuantity = false) {
       .filter(Boolean);
 
     const values = Array.from({ length: rowCount }, (_, r) => {
-      if (r === 0) return [...headers];
+      if (r === 0) return [includeQuantity ? "＜集計＞" : "＜凡例＞", "", ""];
       const d = rows[r - 1];
       const qty = includeQuantity ? d.quantity : (d.pinBottom ? "A-1, B-1, C-1..." : "");
       return [d.content, qty, d.unit ?? ""];
     });
 
-    const cellStyle = {
-      fill:               { color: "FFFFFF" },
-      font:               { name: "Meiryo", size: 9, bold: true, color: "000000" },
-      margins:            { top: 0, bottom: 0, left: 5, right: 0 },
-      verticalAlignment:  "Bottom"
+    const baseStyle = {
+      fill:              { color: "FFFFFF" },
+      font:              { name: "Meiryo", size: 9, bold: true, color: "000000" },
+      margins:           { top: 0, bottom: 0, left: 5, right: 0 },
+      verticalAlignment: "Bottom"
     };
 
     const specificCellProperties = Array.from({ length: rowCount }, (_, r) => {
-      const isHeader = r === 0;
-      const isNoUnit = !isHeader && rows[r - 1].noUnit;
+      const isHeader    = r === 0;
+      const isNoUnit    = !isHeader && rows[r - 1].noUnit;
       const isPinBottom = !isHeader && rows[r - 1].pinBottom;
+
       return Array.from({ length: 3 }, (_, c) => {
+        // 結合エリア内の非左上セル
         if (isNoUnit && c === 2) return {};
+
         const borders = isHeader
           ? { top: noBorder, left: noBorder, right: noBorder, bottom: solidBorder }
           : { top: solidBorder, left: solidBorder, right: solidBorder, bottom: solidBorder };
 
         // 数量列（c=1）：写真番号行以外は中央寄せ
-        const isQtyCenter = c === 1 && !isHeader && !isPinBottom;
+        const hAlign = (c === 1 && !isHeader && !isPinBottom) ? "Center" : undefined;
 
-        // 集計表出力かつデータ行の数量列（c=1）：フォント色を適用
-        if (includeQuantity && !isHeader && c === 1) {
-          const rawColor = fontColors[r - 1];
-          const fontColor = rawColor ? rawColor.replace("#", "") : "000000";
-          return {
-            ...cellStyle,
-            font: { ...cellStyle.font, color: fontColor },
-            horizontalAlignment: isQtyCenter ? "Center" : undefined,
-            borders
-          };
-        }
+        // 集計表出力のデータ行数量列：丸の色をフォントカラーに
+        const fontColor = (includeQuantity && !isHeader && c === 1)
+          ? (fontColors[r - 1]?.replace("#", "") ?? "000000")
+          : undefined;
 
         return {
-          ...cellStyle,
-          ...(isQtyCenter ? { horizontalAlignment: "Center" } : {}),
+          ...baseStyle,
+          ...(hAlign    ? { horizontalAlignment: hAlign } : {}),
+          ...(fontColor ? { font: { ...baseStyle.font, color: fontColor } } : {}),
           borders
         };
       });
@@ -684,15 +655,13 @@ async function outputTableToSlide(includeQuantity = false) {
 
     await context.sync();
 
-    // specificCellProperties の horizontalAlignment が効かない環境向けの保険
-    // addTable 後に TableCell から直接設定する（PowerPointApi 1.9）
+    // specificCellProperties の horizontalAlignment が効かない環境向けの保険（API 1.9）
     try {
       const table = tableShape.getTable();
       table.load();
       await context.sync();
       for (let r = 1; r < rowCount; r++) {
-        const isPinBottom = rows[r - 1].pinBottom;
-        if (isPinBottom) continue;
+        if (rows[r - 1].pinBottom) continue;
         const cell = table.getCellOrNullObject(r, 1);
         if (!cell.isNullObject) cell.horizontalAlignment = "Center";
       }
@@ -769,7 +738,7 @@ async function placeErrorTextOnSlide(message) {
 
 // ─── 集計処理 ─────────────────────────────────────────────
 
-async function sumNumbersByTextColor(targetTextColor, label) {
+async function sumNumbersByTextColor(targetTextColor) {
   setResult({ text: "集計中..." });
 
   await PowerPoint.run(async (context) => {
@@ -791,7 +760,51 @@ async function sumNumbersBySelectedTextColor() {
   setResult({ text: "選択中の文字色を取得中..." });
   const selected = await getSelectedTextInfo();
   if (!selected.ok) { setResult({ text: selected.message }); return; }
-  await sumNumbersByTextColor(selected.textColor, `選択中の文字色 ${selected.textColor}`);
+  await sumNumbersByTextColor(selected.textColor);
+}
+
+/**
+ * 選択中テキストの文字色で「0.5x1.5」形式の面積を合計する。
+ * 必ず4文字目（index=3）が「x」であることを前提に前半・後半を掛け算する。
+ */
+async function sumAreaBySelectedTextColor() {
+  setResult({ text: "選択中の文字色を取得中..." });
+  const selected = await getSelectedTextInfo();
+  if (!selected.ok) { setResult({ text: selected.message }); return; }
+
+  setResult({ text: "面積を集計中..." });
+
+  await PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return;
+
+    let total = 0;
+    for (const item of await getTextShapes(context, slide)) {
+      const coloredText = await extractTextByColor(
+        context, item.textRange, item.text, selected.textColor
+      );
+      total += extractAreaValues(coloredText);
+    }
+
+    const result = Math.ceil(total * 100) / 100;  // 小数点以下3桁目を繰り上げ
+    const resultStr = result.toFixed(2);           // 小数点以下2桁で表示
+    setResult({ text: resultStr, color: selected.textColor, copyValue: resultStr });
+  });
+}
+
+/**
+ * テキストから「0.5x1.5」形式（4文字目がx）を全て抽出して掛け算し合計する。
+ */
+function extractAreaValues(text) {
+  let total = 0;
+  // 4文字目（index=3）が x であるパターン：前半3文字 x 後半
+  const matches = [...text.matchAll(/(\S{3})x(\S+)/g)];
+  for (const m of matches) {
+    const a = parseFloat(m[1]);
+    const b = parseFloat(m[2]);
+    if (!isNaN(a) && !isNaN(b)) total += a * b;
+  }
+  return total;
 }
 
 async function sumNumbersBySelectedTextColorAndFillColor() {
@@ -815,9 +828,6 @@ async function sumNumbersBySelectedTextColorAndFillColor() {
   });
 }
 
-/**
- * 指定色（フォント色 + オプションで背景色）で数字を合計する（自動集計用）。
- */
 async function sumNumbersByColorDirect(targetTextColor, targetFillColor) {
   return PowerPoint.run(async (context) => {
     const slide = await getCurrentSlide(context);
@@ -1076,9 +1086,6 @@ function escapeHtml(value) {
 
 // ─── UI 更新 ──────────────────────────────────────────────
 
-/**
- * 結果欄を一括更新する。
- */
 function setResult({ text, html, color = null, copyValue = null }) {
   const el = document.getElementById(UI.result);
   if (el) {
