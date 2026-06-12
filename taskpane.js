@@ -127,6 +127,19 @@ function renderDefectButtons() {
       container.appendChild(button);
     });
   });
+
+  // テキストが折り返すボタンのフォントサイズを縮小
+  shrinkOverflowButtons(container);
+  new ResizeObserver(() => shrinkOverflowButtons(container)).observe(container);
+}
+
+function shrinkOverflowButtons(container) {
+  container.querySelectorAll(".defectButton").forEach((btn) => {
+    btn.style.fontSize = "";            // いったんリセット
+    if (btn.scrollHeight > btn.clientHeight + 2) {
+      btn.style.fontSize = "10px";
+    }
+  });
 }
 
 function addTableRow({ content, unit, noUnit = false }) {
@@ -135,6 +148,14 @@ function addTableRow({ content, unit, noUnit = false }) {
 
   const row = document.createElement("div");
   row.className = noUnit ? "tableInputRow noUnitRow" : "tableInputRow";
+  row.draggable = true;
+  if (noUnit) row.dataset.pinBottom = "true";
+
+  // ドラッグハンドル
+  const handle = document.createElement("span");
+  handle.className = "drag-handle";
+  handle.textContent = "⠿";
+  handle.setAttribute("aria-hidden", "true");
 
   // 数量欄：noUnitはtextarea、通常はtext input
   let quantityEl;
@@ -155,12 +176,14 @@ function addTableRow({ content, unit, noUnit = false }) {
 
   if (noUnit) {
     row.append(
+      handle,
       createTableInput({ value: content, className: "contentInput" }),
       quantityEl,
       deleteButton
     );
   } else {
     row.append(
+      handle,
       createTableInput({ value: content, className: "contentInput" }),
       quantityEl,
       createTableInput({ value: unit, className: "unitInput" }),
@@ -168,8 +191,61 @@ function addTableRow({ content, unit, noUnit = false }) {
     );
   }
 
-  tableRows.appendChild(row);
+  // noUnit行（写真番号等）は常に最下部、それ以外は最初のnoUnit行の直前に挿入
+  const firstPinned = tableRows.querySelector("[data-pin-bottom]");
+  if (noUnit || !firstPinned) {
+    tableRows.appendChild(row);
+  } else {
+    tableRows.insertBefore(row, firstPinned);
+  }
+
+  setupDragAndDrop(row, tableRows);
   quantityEl.focus();
+}
+
+// ── ドラッグ&ドロップ ────────────────────────────────────
+let dragSrc = null;
+
+function setupDragAndDrop(row, tableRows) {
+  row.addEventListener("dragstart", (e) => {
+    dragSrc = row;
+    row.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+  });
+
+  row.addEventListener("dragend", () => {
+    row.classList.remove("dragging");
+    tableRows.querySelectorAll(".drag-over").forEach((el) => el.classList.remove("drag-over"));
+    dragSrc = null;
+    enforcePinnedRows(tableRows);
+  });
+
+  row.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    if (!dragSrc || dragSrc === row) return;
+    e.dataTransfer.dropEffect = "move";
+    tableRows.querySelectorAll(".drag-over").forEach((el) => el.classList.remove("drag-over"));
+    row.classList.add("drag-over");
+  });
+
+  row.addEventListener("drop", (e) => {
+    e.preventDefault();
+    if (!dragSrc || dragSrc === row) return;
+    const rows = [...tableRows.children];
+    const srcIdx = rows.indexOf(dragSrc);
+    const tgtIdx = rows.indexOf(row);
+    if (srcIdx < tgtIdx) {
+      tableRows.insertBefore(dragSrc, row.nextSibling);
+    } else {
+      tableRows.insertBefore(dragSrc, row);
+    }
+  });
+}
+
+// noUnit行が末尾に来るよう整列
+function enforcePinnedRows(tableRows) {
+  const pinned = [...tableRows.querySelectorAll("[data-pin-bottom]")];
+  pinned.forEach((el) => tableRows.appendChild(el));
 }
 
 function createTableInput({ value = "", className = "", placeholder = "", inputmode = "" }) {

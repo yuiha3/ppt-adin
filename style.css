@@ -176,13 +176,14 @@
 }
 
 .defectButtonGrid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 3px;
   margin-bottom: 12px;
 }
 
 .defect-group-label {
+  grid-column: 1 / -1;
   font-size: 10px;
   font-weight: 700;
   color: #9ca3af;
@@ -194,7 +195,7 @@
 .defect-group-label:first-child { margin-top: 0; }
 
 .defectButton {
-  padding: 7px 10px;
+  padding: 6px 8px;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   background: #ffffff;
@@ -203,8 +204,15 @@
   font-weight: 600;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
-  text-align: left;
+  text-align: center;
   width: 100%;
+  /* 高さを揃えるため折り返しを許容しつつ1行高さに固定 */
+  height: 34px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
 }
 
 .defectButton:hover  { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
@@ -216,13 +224,13 @@
 .tableHeader,
 .tableInputRow {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 0.8fr 24px;
+  grid-template-columns: 16px 1.5fr 1fr 0.8fr 24px;
   gap: 4px;
 }
 
 /* 単位なし行（その他・写真番号） */
 .noUnitRow {
-  grid-template-columns: 1.5fr 1fr 24px;
+  grid-template-columns: 16px 1.5fr 1fr 24px;
 }
 
 .tableHeader {
@@ -276,6 +284,32 @@
   resize: vertical;
   min-height: 54px;
   line-height: 1.5;
+}
+
+/* =============================================
+   Drag Handle & DnD
+   ============================================= */
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #d1d5db;
+  font-size: 14px;
+  cursor: grab;
+  user-select: none;
+  padding-top: 2px;
+}
+
+.drag-handle:active { cursor: grabbing; }
+
+.tableInputRow.dragging {
+  opacity: 0.4;
+}
+
+.tableInputRow.drag-over {
+  outline: 2px solid #0070c0;
+  outline-offset: 1px;
+  border-radius: 6px;
 }
 
 /* =============================================
