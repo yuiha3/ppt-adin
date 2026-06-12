@@ -311,20 +311,20 @@ async function outputTableToSlide() {
       }
     });
 
-    // values：テキストは values で渡す（specificCellProperties との混在を避ける）
+    // values：テキストを2次元配列で渡す
     const values = Array.from({ length: rowCount }, (_, r) => {
       if (r === 0) return [...headers];
       const d = rows[r - 1];
       return [d.content, d.quantity, d.unit ?? ""];
     });
 
-    // specificCellProperties：スタイルのみ（text は含めない）
+    // specificCellProperties：horizontalAlignment は 1.9 からしか効かないため
+    // addTable 時点ではフォント・罫線・背景・余白のみ設定する
     const specificCellProperties = Array.from({ length: rowCount }, (_, r) => {
       const isHeader = r === 0;
       const isNoUnit = !isHeader && rows[r - 1].noUnit;
 
       return Array.from({ length: 3 }, (_, c) => {
-        // 結合エリア内の非左上セル（noUnit行のc=2）は空オブジェクト
         if (isNoUnit && c === 2) return {};
 
         const borders = isHeader
@@ -332,11 +332,9 @@ async function outputTableToSlide() {
           : { top: solidBorder, left: solidBorder, right: solidBorder, bottom: solidBorder };
 
         return {
-          fill:                { color: "FFFFFF" },
-          font:                { name: "Meiryo", size: 9, bold: true, color: "000000" },
-          horizontalAlignment: "Left",
-          verticalAlignment:   "MiddleCentered",
-          margins:             { top: 0, bottom: 0, left: 5, right: 0 },
+          fill:    { color: "FFFFFF" },
+          font:    { name: "Meiryo", size: 9, bold: true, color: "000000" },
+          margins: { top: 0, bottom: 0, left: 5, right: 0 },
           borders
         };
       });
@@ -351,6 +349,26 @@ async function outputTableToSlide() {
       mergedAreas,
       specificCellProperties
     });
+
+    await context.sync();
+
+    // horizontalAlignment と verticalAlignment は PowerPointApi 1.9 から有効。
+    // addTable のオプションでは効かないため、作成後に TableCell に直接設定する。
+    const table = tableShape.getTable();
+    table.load();
+    await context.sync();
+
+    for (let r = 0; r < rowCount; r++) {
+      for (let c = 0; c < 3; c++) {
+        const isNoUnit = r > 0 && rows[r - 1].noUnit;
+        // 結合内の非左上セルはスキップ
+        if (isNoUnit && c === 2) continue;
+
+        const cell = table.getCellOrNullObject(r, c);
+        cell.horizontalAlignment = "Left";
+        cell.verticalAlignment   = "MiddleCentered";
+      }
+    }
 
     await context.sync();
     setResult({ text: "スライドに出力しました" });
