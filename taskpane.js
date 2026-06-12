@@ -294,97 +294,56 @@ async function outputTableToSlide() {
     const headers   = ["内容", "数量", "単位"];
     const colWidths = [80, 60, 105]; // pt
     const rowHeight = 13.5;          // pt
-    const PT        = 12700;         // 1pt = 12700 EMU
 
-    // Step1: addTable で表を作成し、shapes を再ロードして shape を取得
-    const shapesBefore = slide.shapes;
-    shapesBefore.load("count");
+    // ── Step1: 追加前の shape 数を記録 ──
+    const shapes = slide.shapes;
+    shapes.load("count");
     await context.sync();
-    const countBefore = shapesBefore.count;
+    const indexBefore = shapes.count;
 
-    slide.shapes.addTable(rowCount, 3);
-    await context.sync();
-
-    // 追加された shape を index で取得
-    const tableShape = slide.shapes.getItemAt(countBefore);
-    tableShape.load(["id", "left", "top", "width", "height"]);
+    // ── Step2: 表を作成 ──
+    shapes.addTable(rowCount, 3);
     await context.sync();
 
-    // Step2: 位置を設定
+    // ── Step3: 追加された shape を index で取得 ──
+    const tableShape = shapes.getItemAt(indexBefore);
+    tableShape.load(["left", "top"]);
+    await context.sync();
+
     tableShape.left = 30;
     tableShape.top  = 120;
+
+    // ── Step4: table プロキシを取得してセルを設定 ──
+    // table は Shape のナビゲーションプロパティ。load 不要で参照可能
+    const table = tableShape.table;
+
+    // 列幅・行高
+    for (let c = 0; c < 3; c++) {
+      table.columns.getItemAt(c).width = colWidths[c];
+    }
+    for (let r = 0; r < rowCount; r++) {
+      table.rows.getItemAt(r).height = rowHeight;
+    }
+
+    // セルのテキスト・背景色を設定
+    for (let r = 0; r < rowCount; r++) {
+      for (let c = 0; c < 3; c++) {
+        const cell = table.getCell(r, c);
+
+        const text = r === 0
+          ? headers[c]
+          : (c === 0 ? rows[r-1].content
+           : c === 1 ? rows[r-1].quantity
+           :           rows[r-1].unit);
+        cell.text = text ?? "";
+
+        cell.fill.setSolidColor("FFFFFF");
+      }
+    }
+
     await context.sync();
-
-    // Step3: OOXML取得 → スタイル適用 → 上書き
-    // getOoxml は load 後に value を取得するプロキシパターン
-    const ooxmlLoad = tableShape.getOoxml();
-    await context.sync();
-
-    const baseXml   = ooxmlLoad.value;
-    const styledXml = buildStyledTableOoxml(baseXml, rows, headers, colWidths, rowHeight);
-
-    tableShape.setOoxml(styledXml);
-    await context.sync();
-
-    setResult({ text: "スライドに出力しました" });
+    setResult({ text: "スライドに出力しました（罫線・フォントはPowerPoint上で調整してください）" });
   });
-}
-
-
-/**
- * 取得したOOXMLのテーブル部分をVBA仕様に沿って書き換える。
- * - テキスト・罫線・フォント・余白・背景色・行高・列幅をすべてXMLで設定
- */
-function buildStyledTableOoxml(baseXml, rows, headers, colWidths, rowHeight) {
-  const PT  = 12700; // 1pt = 12700 EMU
-  const W   = 12700; // 罫線 1pt
-  const B   = `<a:ln w="${W}"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln>`;
-  const N   = `<a:ln w="0"><a:noFill/></a:ln>`;
-
-  const rowCount = rows.length + 1;
-
-  // 列幅グリッド
-  const gridCols = colWidths.map(w => `<a:gridCol w="${w * PT}"/>`).join("");
-
-  // セルXMLを生成
-  const makeCell = (text, rowIdx, colIdx) => {
-    const isHeader = rowIdx === 0;
-    const isQty    = colIdx === 1;
-    const leftMarg = isQty ? 0 : 5 * PT;
-    const algn     = isQty ? "ctr" : "l";
-    const lnL = isHeader ? N : B;
-    const lnR = isHeader ? N : B;
-    const lnT = isHeader ? N : B;
-    const lnB = B; // 全行下罫線あり
-    const safeText = String(text ?? "")
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
-    return `<a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:pPr algn="${algn}"/><a:r><a:rPr lang="ja-JP" altLang="en-US" sz="900" b="1" dirty="0"><a:solidFill><a:srgbClr val="000000"/></a:solidFill><a:latin typeface="Meiryo"/><a:ea typeface="Meiryo"/></a:rPr><a:t>${safeText}</a:t></a:r></a:p></a:txBody><a:tcPr marL="${leftMarg}" marR="0" marT="0" marB="0" anchor="ctr"><a:lnL>${lnL}</a:lnL><a:lnR>${lnR}</a:lnR><a:lnT>${lnT}</a:lnT><a:lnB>${lnB}</a:lnB><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:tcPr></a:tc>`;
-  };
-
-  // 全行のXMLを生成
-  const rowsXml = [];
-  for (let r = 0; r < rowCount; r++) {
-    const cells = [0, 1, 2].map(c => {
-      const text = r === 0
-        ? headers[c]
-        : (c === 0 ? rows[r-1].content : c === 1 ? rows[r-1].quantity : rows[r-1].unit);
-      return makeCell(text, r, c);
-    });
-    rowsXml.push(
-      `<a:tr h="${Math.round(rowHeight * PT)}">${cells.join("")}</a:tr>`
-    );
-  }
-
-  // baseXml の <p:graphicFrame> から xfrm（位置情報）だけ流用し tbl を丸ごと置換
-  const tblXml = `<a:tbl><a:tblPr firstRow="0" bandRow="0"><a:tableStyleId>{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}</a:tableStyleId></a:tblPr><a:tblGrid>${gridCols}</a:tblGrid>${rowsXml.join("")}</a:tbl>`;
-
-  // baseXml 内の既存 <a:tbl>...</a:tbl> を置換
-  const result = baseXml.replace(/<a:tbl>[\s\S]*?<\/a:tbl>/, tblXml);
-
-  // 置換できなかった場合（まれに tbl がない）はそのまま返す
-  return result.includes("<a:tbl>") ? result : baseXml;
 }
 
 
