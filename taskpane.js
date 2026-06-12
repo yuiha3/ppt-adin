@@ -645,27 +645,37 @@ async function outputTableToSlide(includeQuantity = false) {
     const specificCellProperties = Array.from({ length: rowCount }, (_, r) => {
       const isHeader = r === 0;
       const isNoUnit = !isHeader && rows[r - 1].noUnit;
+      const isPinBottom = !isHeader && rows[r - 1].pinBottom;
       return Array.from({ length: 3 }, (_, c) => {
         if (isNoUnit && c === 2) return {};
         const borders = isHeader
           ? { top: noBorder, left: noBorder, right: noBorder, bottom: solidBorder }
           : { top: solidBorder, left: solidBorder, right: solidBorder, bottom: solidBorder };
 
+        // 数量列（c=1）：写真番号行以外は中央寄せ
+        const isQtyCenter = c === 1 && !isHeader && !isPinBottom;
+
         // 集計表出力かつデータ行の数量列（c=1）：フォント色を適用
         if (includeQuantity && !isHeader && c === 1) {
           const rawColor = fontColors[r - 1];
-          // Office.js の font.color は # なしの6桁HEX
-          const fontColor = rawColor
-            ? rawColor.replace("#", "")
-            : "000000";
-          return { ...cellStyle, font: { ...cellStyle.font, color: fontColor }, borders };
+          const fontColor = rawColor ? rawColor.replace("#", "") : "000000";
+          return {
+            ...cellStyle,
+            font: { ...cellStyle.font, color: fontColor },
+            horizontalAlignment: isQtyCenter ? "Center" : undefined,
+            borders
+          };
         }
 
-        return { ...cellStyle, borders };
+        return {
+          ...cellStyle,
+          ...(isQtyCenter ? { horizontalAlignment: "Center" } : {}),
+          borders
+        };
       });
     });
 
-    slide.shapes.addTable(rowCount, 3, {
+    const tableShape = slide.shapes.addTable(rowCount, 3, {
       left: 30, top: 120,
       columns: colWidths.map((w) => ({ columnWidth: w })),
       rows:    Array.from({ length: rowCount }, () => ({ rowHeight })),
@@ -673,6 +683,22 @@ async function outputTableToSlide(includeQuantity = false) {
     });
 
     await context.sync();
+
+    // specificCellProperties の horizontalAlignment が効かない環境向けの保険
+    // addTable 後に TableCell から直接設定する（PowerPointApi 1.9）
+    try {
+      const table = tableShape.getTable();
+      table.load();
+      await context.sync();
+      for (let r = 1; r < rowCount; r++) {
+        const isPinBottom = rows[r - 1].pinBottom;
+        if (isPinBottom) continue;
+        const cell = table.getCellOrNullObject(r, 1);
+        if (!cell.isNullObject) cell.horizontalAlignment = "Center";
+      }
+      await context.sync();
+    } catch { /* 1.9未満の環境では無視 */ }
+
     setResult({ text: "スライドに出力しました" });
   });
 }
