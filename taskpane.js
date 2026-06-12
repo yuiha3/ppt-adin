@@ -53,13 +53,186 @@ const DEFECT_GROUPS = [
   },
 ];
 
+// pdf.js CDN ワーカー設定（index.htmlでスクリプト読み込み後に設定される）
+const PDFJS_VERSION = "3.11.174";
+
 Office.onReady(() => {
   initializeTabs();
   initializeTableBuilder();
   initializeSummaryButtons();
+  initializePdfImport();
 });
 
 // ─── 初期化 ──────────────────────────────────────────────
+
+// ─── PDF取込 ─────────────────────────────────────────────
+
+let pdfPageImages = []; // {base64: string, width: number, height: number}[]
+
+function initializePdfImport() {
+  const dropZone    = document.getElementById("pdfDropZone");
+  const fileInput   = document.getElementById("pdfFileInput");
+  const insertBtn   = document.getElementById("pdfInsertButton");
+  if (!dropZone || !fileInput || !insertBtn) return;
+
+  // ドラッグ&ドロップ
+  dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("pdf-drop-zone--active");
+  });
+  dropZone.addEventListener("dragleave", () => {
+    dropZone.classList.remove("pdf-drop-zone--active");
+  });
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("pdf-drop-zone--active");
+    const file = e.dataTransfer.files[0];
+    if (file?.type === "application/pdf") loadPdf(file);
+    else showPdfStatus("PDFファイルをドロップしてください。", "error");
+  });
+
+  // ファイル選択
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (file) loadPdf(file);
+  });
+
+  // スライド挿入ボタン
+  insertBtn.addEventListener("click", insertPdfToSlides);
+}
+
+function showPdfStatus(message, type = "info") {
+  const el = document.getElementById("pdfStatus");
+  if (!el) return;
+  el.textContent = message;
+  el.className = `pdf-status pdf-status--${type}`;
+  el.style.display = "block";
+}
+
+async function loadPdf(file) {
+  showPdfStatus("PDFを読み込んでいます...", "info");
+  document.getElementById("pdfPreviewArea").style.display = "none";
+  document.getElementById("pdfPreviewList").innerHTML = "";
+  pdfPageImages = [];
+
+  try {
+    // pdf.js が読み込まれているか確認
+    if (typeof pdfjsLib === "undefined") {
+      showPdfStatus("pdf.jsが読み込まれていません。", "error");
+      return;
+    }
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const numPages = pdf.numPages;
+
+    showPdfStatus(`${numPages}ページを変換中...`, "info");
+
+    const previewList = document.getElementById("pdfPreviewList");
+
+    for (let i = 1; i <= numPages; i++) {
+      showPdfStatus(`変換中: ${i} / ${numPages} ページ`, "info");
+
+      const page = await pdf.getPage(i);
+      // scale: 8.0 = 576dpi相当
+      const viewport = page.getViewport({ scale: 8.0 });
+
+      const canvas = document.createElement("canvas");
+      canvas.width  = viewport.width;
+      canvas.height = viewport.height;
+
+      await page.render({
+        canvasContext: canvas.getContext("2d"),
+        viewport
+      }).promise;
+
+      const base64 = canvas.toDataURL("image/png").split(",")[1];
+      pdfPageImages.push({ base64, width: viewport.width, height: viewport.height });
+
+      // サムネイル表示（scale: 0.15で縮小）
+      const thumbCanvas = document.createElement("canvas");
+      const thumbScale  = 0.15;
+      thumbCanvas.width  = viewport.width  * thumbScale;
+      thumbCanvas.height = viewport.height * thumbScale;
+      const thumbCtx = thumbCanvas.getContext("2d");
+      thumbCtx.drawImage(canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+
+      const thumb = document.createElement("div");
+      thumb.className = "pdf-thumb";
+      const img = document.createElement("img");
+      img.src = thumbCanvas.toDataURL("image/png");
+      img.alt = `${i}ページ`;
+      const label = document.createElement("p");
+      label.textContent = `${i} / ${numPages}`;
+      thumb.append(img, label);
+      previewList.appendChild(thumb);
+    }
+
+    showPdfStatus(`${numPages}ページの変換が完了しました。`, "success");
+    document.getElementById("pdfPreviewArea").style.display = "block";
+
+  } catch (err) {
+    console.error(err);
+    showPdfStatus("PDFの読み込みに失敗しました: " + err.message, "error");
+  }
+}
+
+async function insertPdfToSlides() {
+  if (pdfPageImages.length === 0) {
+    showPdfStatus("先にPDFを読み込んでください。", "error");
+    return;
+  }
+
+  showPdfStatus("スライドに挿入しています...", "info");
+  document.getElementById("pdfInsertButton").disabled = true;
+
+  try {
+    await PowerPoint.run(async (context) => {
+      const presentation = context.presentation;
+      const slides = presentation.slides;
+      slides.load("items");
+      await context.sync();
+
+      // スライドのサイズを取得
+      presentation.load("width,height");
+      await context.sync();
+      const slideW = presentation.width;   // pt
+      const slideH = presentation.height;  // pt
+
+      for (let i = 0; i < pdfPageImages.length; i++) {
+        showPdfStatus(`挿入中: ${i + 1} / ${pdfPageImages.length} ページ`, "info");
+
+        // 新しいスライドを末尾に追加（最初の1枚目はカレントスライドの後に追加）
+        const newSlide = slides.add();
+        await context.sync();
+
+        // スライド全体を覆う矩形を追加して画像で塗りつぶす
+        const shape = newSlide.shapes.addGeometricShape("rectangle", {
+          left:   0,
+          top:    0,
+          width:  slideW,
+          height: slideH
+        });
+        await context.sync();
+
+        // 枠線を透明にする
+        shape.lineFormat.visible = false;
+        // 画像で塗りつぶす（#なしの純粋なbase64）
+        shape.fill.setImage(pdfPageImages[i].base64);
+        await context.sync();
+      }
+    });
+
+    showPdfStatus(`${pdfPageImages.length}枚のスライドを追加しました。`, "success");
+  } catch (err) {
+    console.error(err);
+    showPdfStatus("挿入に失敗しました: " + err.message, "error");
+  } finally {
+    document.getElementById("pdfInsertButton").disabled = false;
+  }
+}
 
 function initializeSummaryButtons() {
   bindClick("sumBlueButton",  () => sumNumbersByTextColor(COLORS.BLUE));

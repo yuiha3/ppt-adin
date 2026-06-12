@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>社内ツール</title>
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <link rel="stylesheet" href="./style.css?v=18" />
 </head>
 <body>
@@ -15,6 +16,9 @@
     </div>
 
     <nav class="tabs" aria-label="機能切り替え">
+      <button id="importTabButton" class="tabButton" type="button" data-tab-target="importTab">
+        図面取込
+      </button>
       <button id="summaryTabButton" class="tabButton active" type="button" data-tab-target="summaryTab">
         集計
       </button>
@@ -22,6 +26,33 @@
         表作成
       </button>
     </nav>
+
+    <!-- 図面取込タブ -->
+    <section id="importTab" class="tabContent">
+
+      <p class="section-label">PDFを取り込む</p>
+
+      <div id="pdfDropZone" class="pdf-drop-zone">
+        <div class="pdf-drop-icon">📄</div>
+        <p class="pdf-drop-text">PDFをここにドロップ</p>
+        <p class="pdf-drop-sub">または</p>
+        <label class="pdf-file-label">
+          ファイルを選択
+          <input id="pdfFileInput" type="file" accept=".pdf" style="display:none">
+        </label>
+      </div>
+
+      <div id="pdfStatus" class="pdf-status" style="display:none"></div>
+
+      <div id="pdfPreviewArea" class="pdf-preview-area" style="display:none">
+        <p class="section-label">プレビュー</p>
+        <div id="pdfPreviewList" class="pdf-preview-list"></div>
+        <button id="pdfInsertButton" type="button" class="output-btn" style="margin-top:10px">
+          スライドに挿入
+        </button>
+      </div>
+
+    </section>
 
     <!-- 集計タブ -->
     <section id="summaryTab" class="tabContent active">

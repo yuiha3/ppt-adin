@@ -856,3 +856,98 @@ body {
   border-color: #ef4444;
 }
 .confirm-ok-btn:hover { background: #dc2626; }
+
+/* =============================================
+   図面取込タブ
+   ============================================= */
+.pdf-drop-zone {
+  border: 2px dashed #d1d5db;
+  border-radius: 10px;
+  padding: 24px 16px;
+  text-align: center;
+  background: #f8fafc;
+  transition: border-color 0.15s, background 0.15s;
+  cursor: pointer;
+}
+
+.pdf-drop-zone--active {
+  border-color: #0070c0;
+  background: #eff6ff;
+}
+
+.pdf-drop-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.pdf-drop-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+  margin: 0 0 4px;
+}
+
+.pdf-drop-sub {
+  font-size: 11px;
+  color: #9ca3af;
+  margin: 0 0 8px;
+}
+
+.pdf-file-label {
+  display: inline-block;
+  padding: 6px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.pdf-file-label:hover { background: #f0f2f5; }
+
+.pdf-status {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.pdf-status--info    { background: #eff6ff; color: #1d4ed8; }
+.pdf-status--success { background: #f0fdf4; color: #166534; }
+.pdf-status--error   { background: #fef2f2; color: #991b1b; }
+
+.pdf-preview-area { margin-top: 12px; }
+
+.pdf-preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.pdf-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.pdf-thumb img {
+  width: 72px;
+  height: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  display: block;
+}
+
+.pdf-thumb p {
+  font-size: 10px;
+  color: #6b7280;
+  margin: 0;
+  text-align: center;
+}
