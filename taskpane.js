@@ -1057,7 +1057,15 @@ async function getShapeFillColor(context, shape) {
 // ─── テキスト処理ユーティリティ ───────────────────────────
 
 function extractNumbers(text) {
-  return (text.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number).filter((v) => !Number.isNaN(v));
+  // extractTextByColor は色違い文字をスペースに置換する。
+  // 「1.0x1.4」はトークン全体が数値でないので除外されるが、
+  // x が別色の場合「1.0 1.4」になるケースも防ぐため、
+  // まず「数値 x 数値」「数値x数値」の面積形式パターンを除去してから評価する。
+  const cleaned = text.replace(/\d+(?:\.\d+)?\s*[xX]\s*\d+(?:\.\d+)?/g, " ");
+  return cleaned.split(/\s+/)
+    .filter((t) => t.length > 0)
+    .map((t) => Number(t))
+    .filter((v) => !isNaN(v));
 }
 
 function extractLetterCodes(text) {
