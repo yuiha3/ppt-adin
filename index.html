@@ -102,9 +102,17 @@
       <div id="tableRows" class="tableRows"></div>
 
       <div class="tableActionArea">
-        <button id="outputTableButton" type="button" class="output-btn">
-          スライドに表を出力
-        </button>
+        <div class="action-btn-row">
+          <button id="autoSumButton" type="button" class="output-btn output-btn--sub">
+            自動集計
+          </button>
+          <button id="outputTableButton" type="button" class="output-btn">
+            凡例表出力
+          </button>
+          <button id="outputSumTableButton" type="button" class="output-btn output-btn--green">
+            集計表出力
+          </button>
+        </div>
         <button id="clearTableRowsButton" type="button" class="clear-btn">
           行をすべて削除
         </button>

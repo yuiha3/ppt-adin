@@ -133,7 +133,9 @@ function activateTab(tabId) {
 
 function initializeTableBuilder() {
   renderDefectButtons();
-  bindClick("outputTableButton",    outputTableToSlide);
+  bindClick("outputTableButton",    () => outputTableToSlide(false));
+  bindClick("outputSumTableButton", () => outputTableToSlide(true));
+  bindClick("autoSumButton",        openAutoSumPopup);
   bindClick("clearTableRowsButton", clearTableRows);
 }
 
@@ -284,6 +286,181 @@ function clearTableRows() {
   document.getElementById("tableRows")?.replaceChildren();
 }
 
+// ─── 自動集計ポップアップ ─────────────────────────────────
+
+function openAutoSumPopup() {
+  const rows = collectTableRows();
+  if (rows.length === 0) { setResult({ text: "行がありません。" }); return; }
+
+  closeAutoSumPopup();
+
+  const overlay = document.createElement("div");
+  overlay.id = "autoSumPopup";
+  overlay.className = "autosum-popup";
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeAutoSumPopup();
+  });
+
+  const inner = document.createElement("div");
+  inner.className = "autosum-popup__inner";
+
+  // ヘッダー
+  const header = document.createElement("div");
+  header.className = "autosum-popup__header";
+  header.textContent = "自動集計";
+  inner.appendChild(header);
+
+  // 本体：行ごとに丸2つ + 内容テキスト
+  const body = document.createElement("div");
+  body.className = "autosum-popup__body";
+
+  // DOM行との対応を保持（丸の色を参照するため）
+  const tableRowEls = [...document.querySelectorAll(".tableInputRow")];
+
+  rows.forEach((rowData, i) => {
+    const domRow   = tableRowEls[i];
+    const dotTop   = domRow?.querySelector(".color-dot[data-color-type='font']");
+    const dotBot   = domRow?.querySelector(".color-dot[data-color-type='fill']");
+    const fontColor = dotTop?.dataset.color || "#1a1d23";
+    const fillColor = dotBot?.dataset.color  || "transparent";
+
+    const rowEl = document.createElement("div");
+    rowEl.className = "autosum-row";
+
+    // 丸2つ
+    const dots = document.createElement("div");
+    dots.className = "autosum-dots";
+
+    const makeDot = (type, color) => {
+      const d = document.createElement("button");
+      d.type = "button";
+      d.className = "color-dot";
+      d.dataset.colorType = type;
+      d.title = type === "font" ? "文字色を変更" : "背景色を変更";
+      d.style.background = color;
+      if (color !== "transparent") d.dataset.color = color;
+      // ポップアップ内でも色変更できる
+      d.addEventListener("click", () => {
+        openColorPicker(d, type, (selected) => {
+          // DOM行の対応する丸にも反映
+          const target = domRow?.querySelector(`.color-dot[data-color-type='${type}']`);
+          if (target) { target.style.background = selected; target.dataset.color = selected; }
+          // 内容テキストの表示色を更新
+          const contentEl = rowEl.querySelector(".autosum-content");
+          if (contentEl) {
+            if (type === "font") contentEl.style.color = selected;
+            else contentEl.style.background = selected;
+          }
+        });
+      });
+      return d;
+    };
+
+    dots.append(makeDot("font", fontColor), makeDot("fill", fillColor));
+    rowEl.appendChild(dots);
+
+    // 内容テキスト
+    const content = document.createElement("span");
+    content.className = "autosum-content";
+    content.textContent = rowData.content;
+    content.style.color = fontColor;
+    content.style.background = fillColor !== "transparent" ? fillColor : "";
+    rowEl.appendChild(content);
+
+    body.appendChild(rowEl);
+  });
+  inner.appendChild(body);
+
+  // フッター
+  const footer = document.createElement("div");
+  footer.className = "autosum-popup__footer";
+
+  const runBtn = document.createElement("button");
+  runBtn.type = "button";
+  runBtn.className = "autosum-run-btn";
+  runBtn.textContent = "集計実行";
+  runBtn.addEventListener("click", async () => {
+    closeAutoSumPopup();
+    await runAutoSum(rows, tableRowEls);
+  });
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "autosum-close-btn";
+  closeBtn.textContent = "閉じる";
+  closeBtn.addEventListener("click", closeAutoSumPopup);
+
+  footer.append(runBtn, closeBtn);
+  inner.appendChild(footer);
+
+  overlay.appendChild(inner);
+  document.body.appendChild(overlay);
+}
+
+function closeAutoSumPopup() {
+  document.getElementById("autoSumPopup")?.remove();
+}
+
+/**
+ * 自動集計実行：各行の丸の色を使って集計し、数量欄に結果を入力する。
+ */
+async function runAutoSum(rows, tableRowEls) {
+  setResult({ text: "自動集計中..." });
+
+  for (let i = 0; i < rows.length; i++) {
+    const domRow   = tableRowEls[i];
+    const dotTop   = domRow?.querySelector(".color-dot[data-color-type='font']");
+    const dotBot   = domRow?.querySelector(".color-dot[data-color-type='fill']");
+    const fontColor = dotTop?.dataset.color;
+    const fillColor = dotBot?.dataset.color;
+    const quantityInput = domRow?.querySelector(".quantityInput");
+
+    if (!fontColor || !quantityInput) continue;
+
+    try {
+      let result;
+      if (fillColor) {
+        result = await sumNumbersByColorDirect(fontColor, fillColor);
+      } else {
+        result = await sumNumbersByColorDirect(fontColor, null);
+      }
+      quantityInput.value = result !== null ? String(result) : "";
+    } catch (e) {
+      console.error("集計エラー:", e);
+    }
+  }
+
+  setResult({ text: "自動集計が完了しました" });
+}
+
+/**
+ * 指定色（フォント色 + オプションで背景色）で数字を合計する。
+ */
+async function sumNumbersByColorDirect(targetTextColor, targetFillColor) {
+  return PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return null;
+
+    const textShapes = await getTextShapes(
+      context, slide,
+      { includeFillColor: !!targetFillColor }
+    );
+
+    const targets = targetFillColor
+      ? textShapes.filter((s) => s.fillColor === targetFillColor)
+      : textShapes;
+
+    const numbers = [];
+    for (const item of targets) {
+      const coloredText = await extractTextByColor(
+        context, item.textRange, item.text, targetTextColor
+      );
+      numbers.push(...extractNumbers(coloredText));
+    }
+    return sum(numbers);
+  });
+}
+
 // ─── カラーピッカー ──────────────────────────────────────
 
 /**
@@ -291,7 +468,7 @@ function clearTableRows() {
  * @param {HTMLElement} dotEl  - クリックされた丸ボタン
  * @param {"font"|"fill"} colorType - 取得する色の種類
  */
-async function openColorPicker(dotEl, colorType) {
+async function openColorPicker(dotEl, colorType, onSelect = null) {
   const title = colorType === "font"
     ? "集計したい文字色を選択"
     : "集計したい背景色を選択";
@@ -335,6 +512,7 @@ async function openColorPicker(dotEl, colorType) {
         dotEl.style.background = color;
         dotEl.dataset.color = color;
         closeColorPicker();
+        if (onSelect) onSelect(color);
       });
       grid.appendChild(swatch);
     });
@@ -442,7 +620,7 @@ async function collectSlideColors(colorType) {
  *   数量列(2列目)：左余白0、横中央揃え
  *   行高さ：13.5pt
  */
-async function outputTableToSlide() {
+async function outputTableToSlide(includeQuantity = false) {
   const rows = collectTableRows();
 
   if (rows.length === 0) {
@@ -476,7 +654,14 @@ async function outputTableToSlide() {
     const values = Array.from({ length: rowCount }, (_, r) => {
       if (r === 0) return [...headers];
       const d = rows[r - 1];
-      return [d.content, d.quantity, d.unit ?? ""];
+      // 凡例表出力（includeQuantity=false）：数量は空欄。写真番号行のみ固定テキスト
+      let qty = "";
+      if (includeQuantity) {
+        qty = d.quantity;
+      } else if (d.pinBottom) {
+        qty = "A-1, B-1, C-1...";
+      }
+      return [d.content, qty, d.unit ?? ""];
     });
 
     // specificCellProperties：フォント・罫線・背景・余白を設定する
@@ -523,12 +708,13 @@ function collectTableRows() {
   if (!container) return [];
 
   return [...container.querySelectorAll(".tableInputRow")].map((row) => {
-    const inputs   = row.querySelectorAll("input.tableInput, textarea.tableInput");
-    const noUnit   = row.classList.contains("noUnitRow");
-    const content  = inputs[0]?.value ?? "";
-    const quantity = inputs[1]?.value ?? "";
-    const unit     = noUnit ? "" : (inputs[2]?.value ?? "");
-    return { content, quantity, unit, noUnit };
+    const inputs    = row.querySelectorAll("input.tableInput, textarea.tableInput");
+    const noUnit    = row.classList.contains("noUnitRow");
+    const pinBottom = row.dataset.pinBottom === "true";
+    const content   = inputs[0]?.value ?? "";
+    const quantity  = inputs[1]?.value ?? "";
+    const unit      = noUnit ? "" : (inputs[2]?.value ?? "");
+    return { content, quantity, unit, noUnit, pinBottom };
   }).filter((r) => r.content || r.quantity);
 }
 
