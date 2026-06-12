@@ -105,6 +105,7 @@ function activateTab(tabId) {
 
 function initializeTableBuilder() {
   renderDefectButtons();
+  bindClick("outputTableButton",   outputTableToSlide);
   bindClick("clearTableRowsButton", clearTableRows);
 }
 
@@ -260,6 +261,201 @@ function createTableInput({ value = "", className = "", placeholder = "", inputm
 
 function clearTableRows() {
   document.getElementById("tableRows")?.replaceChildren();
+}
+
+// ─── 表出力 ──────────────────────────────────────────────
+
+/**
+ * tableRows の内容を読み取り、現在のスライドに表を出力する。
+ *
+ * 表仕様（VBAコード準拠）
+ *   列：内容 80pt / 数量 60pt / 単位 105pt
+ *   1行目：ヘッダー（下罫線のみ）
+ *   2行目以降：全罫線 黒 1pt
+ *   全セル：背景白、余白 上下0 左5pt、垂直中央、フォント9pt 黒 太字 メイリオ
+ *   数量列(2列目)：左余白0、横中央揃え
+ *   行高さ：13.5pt
+ */
+async function outputTableToSlide() {
+  const rows = collectTableRows();
+
+  if (rows.length === 0) {
+    setResult({ text: "行がありません。" });
+    return;
+  }
+
+  setResult({ text: "出力中..." });
+
+  await PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return;
+
+    const rowCount  = rows.length + 1;   // ヘッダー + データ
+    const headers   = ["内容", "数量", "単位"];
+    const PT        = 12700;             // 1pt = 12700 EMU
+    const colWidths = [80, 60, 105];     // pt
+    const rowHeight = 13.5;              // pt
+    const tableLeft = 30  * PT;
+    const tableTop  = 120 * PT;
+    const tableW    = colWidths.reduce((a, b) => a + b, 0) * PT;
+    const tableH    = Math.round(rowHeight * rowCount * PT);
+
+    const tableShape = slide.shapes.addTable(rowCount, 3, {
+      left:   tableLeft,
+      top:    tableTop,
+      width:  tableW,
+      height: tableH
+    });
+
+    await context.sync();
+
+    const table = tableShape.table;
+
+    // 列幅・行高
+    for (let c = 0; c < 3; c++) {
+      table.columns.getItemAt(c).width = colWidths[c] * PT;
+    }
+    for (let r = 0; r < rowCount; r++) {
+      table.rows.getItemAt(r).height = Math.round(rowHeight * PT);
+    }
+
+    // セル内容・スタイルを設定
+    for (let r = 0; r < rowCount; r++) {
+      for (let c = 0; c < 3; c++) {
+        const cell = table.getCell(r, c);
+
+        // テキスト
+        const text = r === 0
+          ? headers[c]
+          : (c === 0 ? rows[r-1].content : c === 1 ? rows[r-1].quantity : rows[r-1].unit);
+        cell.text = text ?? "";
+
+        // 背景色
+        cell.fill.setSolidColor("#FFFFFF");
+
+        // テキストフレーム
+        const tf = cell.textFrame;
+        tf.topMargin    = 0;
+        tf.bottomMargin = 0;
+        tf.leftMargin   = (c === 1 ? 0 : 5) * PT;
+        tf.rightMargin  = 0;
+        tf.verticalAlignment = "MiddleCentered";
+        tf.autoSizeSetting   = "AutoSizeNone";
+
+        // フォント・段落
+        const textRange = tf.textRange;
+        textRange.font.name  = "Meiryo";
+        textRange.font.size  = 9;
+        textRange.font.bold  = true;
+        textRange.font.color = "#000000";
+        textRange.paragraphFormat.horizontalAlignment =
+          c === 1 ? "Center" : "Left";
+      }
+    }
+
+    await context.sync();
+
+    // 罫線はOOXMLで設定（Office.js に罫線直接設定APIがない）
+    tableShape.load("id");
+    await context.sync();
+
+    const ooxmlResult = tableShape.getOoxml();
+    await context.sync();
+
+    const styledXml = applyTableBorderStyles(ooxmlResult.value, rowCount);
+    tableShape.setOoxml(styledXml);
+    await context.sync();
+
+    setResult({ text: "スライドに出力しました" });
+  });
+}
+
+/**
+ * OOXMLに罫線・フォントスタイルを適用する。
+ *  - ヘッダー行(1行目)：下罫線のみ
+ *  - データ行：全罫線 黒 1pt
+ *  - フォント：メイリオ 9pt 太字
+ */
+function applyTableBorderStyles(xml, rowCount) {
+  const W = 12700; // 1pt in EMU
+
+  const solidBorder = (w, color) =>
+    `<a:ln w="${w}"><a:solidFill><a:srgbClr val="${color}"/></a:solidFill></a:ln>`;
+  const noBorder = `<a:ln w="0"><a:noFill/></a:ln>`;
+  const B = solidBorder(W, "000000");
+  const N = noBorder;
+
+  // <a:tr> を行単位で処理
+  let rowIndex = 0;
+  xml = xml.replace(/<a:tr[ >]/g, (match) => {
+    rowIndex++;
+    return match; // カウントだけ
+  });
+
+  rowIndex = 0;
+  xml = xml.replace(/(<a:tr[^>]*>)([\s\S]*?)(<\/a:tr>)/g, (match, open, inner, close) => {
+    const isHeader = rowIndex === 0;
+    rowIndex++;
+
+    // tcPr 内の罫線を書き換え
+    inner = inner.replace(/(<a:tcPr[^>]*>)([\s\S]*?)(<\/a:tcPr>)/g, (m, tcOpen, tcInner, tcClose) => {
+      // 既存の lnL/lnR/lnT/lnB を削除して再設定
+      tcInner = tcInner
+        .replace(/<a:lnL>[\s\S]*?<\/a:lnL>/g, "")
+        .replace(/<a:lnR>[\s\S]*?<\/a:lnR>/g, "")
+        .replace(/<a:lnT>[\s\S]*?<\/a:lnT>/g, "")
+        .replace(/<a:lnB>[\s\S]*?<\/a:lnB>/g, "");
+
+      const borders = isHeader
+        ? `<a:lnL>${N}</a:lnL><a:lnR>${N}</a:lnR><a:lnT>${N}</a:lnT><a:lnB>${B}</a:lnB>`
+        : `<a:lnL>${B}</a:lnL><a:lnR>${B}</a:lnR><a:lnT>${B}</a:lnT><a:lnB>${B}</a:lnB>`;
+
+      return `${tcOpen}${borders}${tcInner}${tcClose}`;
+    });
+
+    // フォント設定：<a:rPr> にメイリオ・9pt・太字を追記
+    inner = inner.replace(/(<a:rPr[^>]*?>)/g, (m, rpr) => {
+      // sz・b を上書き
+      let r2 = rpr.replace(/\s*sz="[^"]*"/, "").replace(/\s*b="[^"]*"/, "");
+      r2 = r2.replace("<a:rPr", `<a:rPr sz="900" b="1"`);
+      return r2;
+    });
+    // ラテン/東アジアフォント指定を削除して再挿入
+    inner = inner
+      .replace(/<a:latin[^/]*\/>/g, "")
+      .replace(/<a:ea[^/]*\/>/g, "");
+    inner = inner.replace(/(<a:rPr[^>]*>)/g,
+      `$1<a:latin typeface="Meiryo"/><a:ea typeface="Meiryo"/>`);
+
+    return `${open}${inner}${close}`;
+  });
+
+  return xml;
+}
+
+/**
+ * tableRows DOM から行データを収集する。
+ */
+function collectTableRows() {
+  const container = document.getElementById("tableRows");
+  if (!container) return [];
+
+  return [...container.querySelectorAll(".tableInputRow")].map((row) => {
+    const inputs   = row.querySelectorAll("input.tableInput, textarea.tableInput");
+    const content  = inputs[0]?.value ?? "";
+    const quantity = inputs[1]?.value ?? "";
+    const unit     = row.classList.contains("noUnitRow") ? "" : (inputs[2]?.value ?? "");
+    return { content, quantity, unit };
+  }).filter((r) => r.content || r.quantity);
+}
+
+function escapeXml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 function bindClick(elementId, handler) {

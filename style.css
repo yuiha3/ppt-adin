@@ -320,7 +320,29 @@
 /* =============================================
    Table Action
    ============================================= */
-.tableActionArea { margin-top: 10px; }
+.tableActionArea {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.output-btn {
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 6px;
+  background: #0070c0;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.12s;
+  letter-spacing: 0.02em;
+}
+
+.output-btn:hover  { background: #005fa3; }
+.output-btn:active { background: #004f8a; }
 
 .clear-btn {
   width: 100%;
