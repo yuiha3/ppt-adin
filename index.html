@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>社内ツール</title>
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
-  <link rel="stylesheet" href="./style.css?v=17" />
+  <link rel="stylesheet" href="./style.css?v=18" />
 </head>
 <body>
   <main class="container">
@@ -47,14 +47,14 @@
       <div class="divider"></div>
       <p class="section-label">選択色で集計</p>
       <div class="action-list">
-        <button id="sumSelectedColorButton" type="button" class="action-btn purple">
+        <button id="sumSelectedColorButton" type="button" class="action-btn gray">
           <span class="btn-dot"></span>
           <span class="btn-label">
-            選択中の文字色で集計
+            文字色で集計
             <span class="btn-sub">文字を選択してから実行</span>
           </span>
         </button>
-        <button id="sumSelectedTextAndFillColorButton" type="button" class="action-btn teal">
+        <button id="sumSelectedTextAndFillColorButton" type="button" class="action-btn gray">
           <span class="btn-dot"></span>
           <span class="btn-label">
             文字色＋背景色で集計
@@ -69,8 +69,15 @@
         <button id="formatBlackCodeButton" type="button" class="action-btn dark">
           <span class="btn-dot"></span>
           <span class="btn-label">
-            写真番号を集計
-            <span class="btn-sub">黒文字を集計して合計を表示</span>
+            このスライドの写真番号を集計
+            <span class="btn-sub">このスライド1枚の写真番号を集計</span>
+          </span>
+        </button>
+        <button id="formatAllSlidesBlackCodeButton" type="button" class="action-btn dark">
+          <span class="btn-dot"></span>
+          <span class="btn-label">
+            全スライドの写真番号を集計
+            <span class="btn-sub">全てのスライドの写真番号を集計</span>
           </span>
         </button>
       </div>
@@ -97,6 +104,13 @@
         <button id="clearTableRowsButton" type="button" class="clear-btn">
           行をすべて削除
         </button>
+        <button id="formatAllSlidesBlackCodeButton" type="button" class="action-btn dark">
+          <span class="btn-dot"></span>
+          <span class="btn-label">
+            全スライドの写真番号を集計
+            <span class="btn-sub">全てのスライドの写真番号を集計</span>
+          </span>
+        </button>
       </div>
 
     </section>
@@ -113,6 +127,6 @@
       </button>
     </div>
   </footer>
-  <script src="./taskpane.js?v=17"></script>
+  <script src="./taskpane.js?v=18"></script>
 </body>
 </html>

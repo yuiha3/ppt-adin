@@ -151,11 +151,10 @@
   margin-top: 1px;
 }
 
-.action-btn.blue   { --btn-color: #0070c0; }
-.action-btn.green  { --btn-color: #00b050; }
-.action-btn.purple { --btn-color: #7c3aed; }
-.action-btn.teal   { --btn-color: #0f766e; }
-.action-btn.dark   { --btn-color: #374151; }
+.action-btn.blue  { --btn-color: #0070c0; }
+.action-btn.green { --btn-color: #00b050; }
+.action-btn.gray  { --btn-color: #9ca3af; }
+.action-btn.dark  { --btn-color: #374151; }
 
 /* =============================================
    Divider

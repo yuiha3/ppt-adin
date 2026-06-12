@@ -29,7 +29,8 @@ function initializeSummaryButtons() {
   bindClick("sumGreenButton", () => sumNumbersByTextColor(COLORS.GREEN, "緑文字 RGB(0,176,80)"));
   bindClick("sumSelectedColorButton",          sumNumbersBySelectedTextColor);
   bindClick("sumSelectedTextAndFillColorButton", sumNumbersBySelectedTextColorAndFillColor);
-  bindClick("formatBlackCodeButton", () => formatCodesByTextColor(COLORS.BLACK));
+  bindClick("formatBlackCodeButton",         () => formatCodesByTextColor(COLORS.BLACK, false));
+  bindClick("formatAllSlidesBlackCodeButton", () => formatCodesByTextColor(COLORS.BLACK, true));
 
   const copyBtn = document.getElementById(UI.copyButton);
   if (!copyBtn) return;
@@ -203,20 +204,32 @@ async function sumNumbersBySelectedTextColorAndFillColor() {
 /**
  * 指定色の A-1 形式コードをアルファベットごとに連番圧縮する。
  */
-async function formatCodesByTextColor(targetTextColor) {
-  setResult({ text: "整理中..." });
+async function formatCodesByTextColor(targetTextColor, allSlides = false) {
+  setResult({ text: allSlides ? "全スライドを整理中..." : "整理中..." });
 
   await PowerPoint.run(async (context) => {
-    const slide = await getCurrentSlide(context);
-    if (!slide) return;
+    let slides;
 
-    const textShapes = await getTextShapes(context, slide);
+    if (allSlides) {
+      const allSlideCollection = context.presentation.slides;
+      allSlideCollection.load("items");
+      await context.sync();
+      slides = allSlideCollection.items;
+    } else {
+      const current = await getCurrentSlide(context);
+      if (!current) return;
+      slides = [current];
+    }
+
     const grouped = {};
 
-    for (const item of textShapes) {
-      const coloredText = await extractTextByColor(context, item.textRange, item.text, targetTextColor);
-      for (const { letter, number } of extractLetterCodes(coloredText)) {
-        (grouped[letter] ??= []).push(number);
+    for (const slide of slides) {
+      const textShapes = await getTextShapes(context, slide);
+      for (const item of textShapes) {
+        const coloredText = await extractTextByColor(context, item.textRange, item.text, targetTextColor);
+        for (const { letter, number } of extractLetterCodes(coloredText)) {
+          (grouped[letter] ??= []).push(number);
+        }
       }
     }
 
