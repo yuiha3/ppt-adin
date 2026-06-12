@@ -313,8 +313,9 @@ async function outputTableToSlide() {
     });
 
     const tableShape = slide.shapes.addTable(rowCount, 3, {
-      left:   30,
-      top:    120,
+      left:    30,
+      top:     120,
+      style:   "NoStyleNoGrid",  // デフォルトスタイルをリセットして horizontalAlignment を確実に効かせる
       columns: colWidths.map((w) => ({ columnWidth: w })),
       rows:    Array.from({ length: rowCount }, () => ({ rowHeight })),
       mergedAreas,
