@@ -1118,17 +1118,34 @@ function extractLetterCodes(text) {
 function compressNumberRanges(numbers) {
   if (!numbers?.length) return "";
 
-  const sorted = [...new Set(numbers)].sort((a, b) => a - b);
+  // 重複はそのまま保持してソート
+  const sorted = [...numbers].sort((a, b) => a - b);
   const ranges = [];
-  let start = sorted[0];
-  let prev  = sorted[0];
+  let i = 0;
 
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] === prev + 1) { prev = sorted[i]; continue; }
+  while (i < sorted.length) {
+    // 重複している値は1つずつ個別出力
+    if (i + 1 < sorted.length && sorted[i] === sorted[i + 1]) {
+      ranges.push(String(sorted[i]));
+      i++;
+      continue;
+    }
+    // 重複なし：連番を探して圧縮
+    // ただし次が重複値（sorted[i+1] === sorted[i+2]）の場合はここでは連番に含めない
+    let start = sorted[i];
+    let prev  = sorted[i];
+    while (
+      i + 1 < sorted.length &&
+      sorted[i + 1] === prev + 1 &&
+      // 次の値が更にその次と同じ（重複）なら連番に含めず止める
+      sorted[i + 1] !== sorted[i + 2]
+    ) {
+      i++;
+      prev = sorted[i];
+    }
     ranges.push(formatRange(start, prev));
-    start = prev = sorted[i];
+    i++;
   }
-  ranges.push(formatRange(start, prev));
 
   return ranges.join(", ");
 }
