@@ -125,7 +125,10 @@ async function loadPdf(file) {
       `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
 
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pdf = await pdfjsLib.getDocument({
+      data: arrayBuffer,
+      maxCanvasPixels: -1  // Canvas解像度制限を無効化（デフォルト16,777,216を超えるサイズに対応）
+    }).promise;
     const numPages = pdf.numPages;
 
     showPdfStatus(`${numPages}ページを変換中...`, "info");
