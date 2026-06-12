@@ -320,22 +320,25 @@ body {
   background: #ffffff;
   border-top: 1px solid #e5e7eb;
   box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
-  padding: 10px 12px 14px;
+  padding: 12px 12px 14px;
+  display: flex;
+  align-items: center;
 }
 
 .result-footer-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
+  width: 100%;
 }
 
 .result-total {
   flex: 1;
-  font-size: 13px;
+  font-size: 18px;
   font-weight: 600;
   color: #1a1d23;
   letter-spacing: 0;
-  line-height: 1.7;
+  line-height: 1.5;
   text-align: center;
   word-break: break-word;
 }
