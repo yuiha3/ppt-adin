@@ -171,28 +171,39 @@
 .tab-description {
   font-size: 11px;
   color: #6b7280;
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   line-height: 1.5;
 }
 
 .defectButtonGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   margin-bottom: 12px;
 }
 
+.defect-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 8px 0 3px;
+}
+
+.defect-group-label:first-child { margin-top: 0; }
+
 .defectButton {
-  padding: 9px 6px;
+  padding: 7px 10px;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #ffffff;
   color: #374151;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
-  text-align: center;
+  text-align: left;
   width: 100%;
 }
 
@@ -207,6 +218,11 @@
   display: grid;
   grid-template-columns: 1.5fr 1fr 0.8fr 24px;
   gap: 4px;
+}
+
+/* 単位なし行（その他・写真番号） */
+.noUnitRow {
+  grid-template-columns: 1.5fr 1fr 24px;
 }
 
 .tableHeader {
@@ -236,6 +252,14 @@
   background: #ffffff;
   color: #1a1d23;
   transition: border-color 0.12s, box-shadow 0.12s;
+  /* スピナー（数値上下ボタン）を非表示 */
+  -moz-appearance: textfield;
+}
+
+.tableInput::-webkit-inner-spin-button,
+.tableInput::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .tableInput:focus {
@@ -244,7 +268,15 @@
   box-shadow: 0 0 0 2px rgba(0,112,192,0.12);
 }
 
-.quantityInput { text-align: right; }
+.quantityInput  { text-align: right; }
+
+/* textareaの数量欄 */
+.quantityTextarea {
+  text-align: left;
+  resize: vertical;
+  min-height: 54px;
+  line-height: 1.5;
+}
 
 /* =============================================
    Table Action

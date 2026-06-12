@@ -9,11 +9,47 @@ const UI = {
   copyButton:  "copyResultButton"
 };
 
-const DEFECT_ITEMS = [
-  { content: "タイル割れ",  unit: "枚数" },
-  { content: "タイル浮き",  unit: "枚数" },
-  { content: "モルタル浮き", unit: "㎡"  },
-  { content: "塗膜浮き",   unit: "㎡"  }
+const DEFECT_GROUPS = [
+  {
+    label: "タイル面",
+    items: [
+      { content: "割れ",       unit: "枚数" },
+      { content: "浮き",       unit: "枚数" },
+      { content: "陶片浮き",   unit: "枚数" },
+      { content: "下地浮き",   unit: "枚数" },
+      { content: "欠損",       unit: "枚数" },
+      { content: "剝落",       unit: "枚数" },
+    ]
+  },
+  {
+    label: "塗装面",
+    items: [
+      { content: "ひび割れ 0.3mm未満", unit: "長さ（m）"  },
+      { content: "ひび割れ 0.3mm以上", unit: "長さ（m）"  },
+      { content: "亀甲割れ",           unit: "面積（㎡）" },
+      { content: "塗膜浮き",           unit: "面積（㎡）" },
+      { content: "塗膜剥離",           unit: "面積（㎡）" },
+      { content: "モルタル浮き",       unit: "面積（㎡）" },
+    ]
+  },
+  {
+    label: "その他",
+    items: [
+      { content: "エフロ",     unit: "箇所" },
+      { content: "爆裂",       unit: "箇所" },
+      { content: "サビ",       unit: "箇所" },
+      { content: "目地欠損",   unit: "箇所" },
+      { content: "シール劣化", unit: "箇所" },
+      { content: "シール状況", unit: "箇所" },
+      { content: "その他",     unit: "",    noUnit: true },
+    ]
+  },
+  {
+    label: "写真番号",
+    items: [
+      { content: "写真番号", unit: "", noUnit: true },
+    ]
+  },
 ];
 
 Office.onReady(() => {
@@ -76,24 +112,40 @@ function renderDefectButtons() {
   const container = document.getElementById("defectButtonGrid");
   if (!container) return;
 
-  DEFECT_ITEMS.forEach((item) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "defectButton";
-    button.textContent = item.content;
-    button.addEventListener("click", () => addTableRow(item));
-    container.appendChild(button);
+  DEFECT_GROUPS.forEach(({ label, items }) => {
+    const groupLabel = document.createElement("p");
+    groupLabel.className = "defect-group-label";
+    groupLabel.textContent = label;
+    container.appendChild(groupLabel);
+
+    items.forEach((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "defectButton";
+      button.textContent = item.content;
+      button.addEventListener("click", () => addTableRow(item));
+      container.appendChild(button);
+    });
   });
 }
 
-function addTableRow({ content, unit }) {
+function addTableRow({ content, unit, noUnit = false }) {
   const tableRows = document.getElementById("tableRows");
   if (!tableRows) return;
 
   const row = document.createElement("div");
-  row.className = "tableInputRow";
+  row.className = noUnit ? "tableInputRow noUnitRow" : "tableInputRow";
 
-  const quantityInput = createTableInput({ type: "number", className: "quantityInput", placeholder: "数量" });
+  // 数量欄：noUnitはtextarea、通常はtext input
+  let quantityEl;
+  if (noUnit) {
+    quantityEl = document.createElement("textarea");
+    quantityEl.className = "tableInput quantityInput quantityTextarea";
+    quantityEl.placeholder = "入力";
+    quantityEl.rows = 2;
+  } else {
+    quantityEl = createTableInput({ className: "quantityInput", placeholder: "数量", inputmode: "numeric" });
+  }
 
   const deleteButton = document.createElement("button");
   deleteButton.type = "button";
@@ -101,23 +153,32 @@ function addTableRow({ content, unit }) {
   deleteButton.textContent = "×";
   deleteButton.addEventListener("click", () => row.remove());
 
-  row.append(
-    createTableInput({ value: content, className: "contentInput" }),
-    quantityInput,
-    createTableInput({ value: unit, className: "unitInput" }),
-    deleteButton
-  );
+  if (noUnit) {
+    row.append(
+      createTableInput({ value: content, className: "contentInput" }),
+      quantityEl,
+      deleteButton
+    );
+  } else {
+    row.append(
+      createTableInput({ value: content, className: "contentInput" }),
+      quantityEl,
+      createTableInput({ value: unit, className: "unitInput" }),
+      deleteButton
+    );
+  }
 
   tableRows.appendChild(row);
-  quantityInput.focus();
+  quantityEl.focus();
 }
 
-function createTableInput({ type = "text", value = "", className = "", placeholder = "" }) {
+function createTableInput({ value = "", className = "", placeholder = "", inputmode = "" }) {
   const input = document.createElement("input");
-  input.type = type;
+  input.type = "text";
   input.className = ["tableInput", className].filter(Boolean).join(" ");
   input.value = value;
   input.placeholder = placeholder;
+  if (inputmode) input.inputMode = inputmode;
   return input;
 }
 
