@@ -310,7 +310,7 @@ function openAutoSumPopup() {
   header.textContent = "自動集計";
   inner.appendChild(header);
 
-  // 本体：行ごとに丸2つ + 内容テキスト
+  // 本体：行ごとに丸2つ + 内容テキスト + 削除ボタン
   const body = document.createElement("div");
   body.className = "autosum-popup__body";
 
@@ -318,18 +318,20 @@ function openAutoSumPopup() {
   const tableRowEls = [...document.querySelectorAll(".tableInputRow")];
 
   rows.forEach((rowData, i) => {
-    const domRow   = tableRowEls[i];
-    const dotTop   = domRow?.querySelector(".color-dot[data-color-type='font']");
-    const dotBot   = domRow?.querySelector(".color-dot[data-color-type='fill']");
-    const fontColor = dotTop?.dataset.color || "#1a1d23";
-    const fillColor = dotBot?.dataset.color  || "transparent";
+    const domRow    = tableRowEls[i];
+    const dotTop    = domRow?.querySelector(".color-dot[data-color-type='font']");
+    const dotBot    = domRow?.querySelector(".color-dot[data-color-type='fill']");
+    const fontColor = dotTop?.dataset.color || null;
+    const fillColor = dotBot?.dataset.color || null;
 
     const rowEl = document.createElement("div");
     rowEl.className = "autosum-row";
 
-    // 丸2つ
+    // noUnit行は丸を非表示
+    const showDots = !rowData.noUnit;
+
     const dots = document.createElement("div");
-    dots.className = "autosum-dots";
+    dots.className = showDots ? "autosum-dots" : "autosum-dots autosum-dots--hidden";
 
     const makeDot = (type, color) => {
       const d = document.createElement("button");
@@ -337,22 +339,21 @@ function openAutoSumPopup() {
       d.className = "color-dot";
       d.dataset.colorType = type;
       d.title = type === "font" ? "文字色を変更" : "背景色を変更";
-      d.style.background = color;
-      if (color !== "transparent") d.dataset.color = color;
-      // ポップアップ内でも色変更できる
-      d.addEventListener("click", () => {
-        openColorPicker(d, type, (selected) => {
-          // DOM行の対応する丸にも反映
-          const target = domRow?.querySelector(`.color-dot[data-color-type='${type}']`);
-          if (target) { target.style.background = selected; target.dataset.color = selected; }
-          // 内容テキストの表示色を更新
-          const contentEl = rowEl.querySelector(".autosum-content");
-          if (contentEl) {
-            if (type === "font") contentEl.style.color = selected;
-            else contentEl.style.background = selected;
-          }
+      // 色未設定なら背景は設定しない（白+ボーダーのデフォルト外観を保つ）
+      if (color) { d.style.background = color; d.dataset.color = color; }
+      if (showDots) {
+        d.addEventListener("click", () => {
+          openColorPicker(d, type, (selected) => {
+            const target = domRow?.querySelector(`.color-dot[data-color-type='${type}']`);
+            if (target) { target.style.background = selected; target.dataset.color = selected; }
+            const contentEl = rowEl.querySelector(".autosum-content");
+            if (contentEl) {
+              if (type === "font") contentEl.style.color = selected;
+              else contentEl.style.background = selected;
+            }
+          });
         });
-      });
+      }
       return d;
     };
 
@@ -363,9 +364,17 @@ function openAutoSumPopup() {
     const content = document.createElement("span");
     content.className = "autosum-content";
     content.textContent = rowData.content;
-    content.style.color = fontColor;
-    content.style.background = fillColor !== "transparent" ? fillColor : "";
+    if (fontColor) content.style.color = fontColor;
+    if (fillColor) content.style.background = fillColor;
     rowEl.appendChild(content);
+
+    // ポップアップ内削除ボタン
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "autosum-delete-btn";
+    delBtn.textContent = "×";
+    delBtn.addEventListener("click", () => rowEl.remove());
+    rowEl.appendChild(delBtn);
 
     body.appendChild(rowEl);
   });

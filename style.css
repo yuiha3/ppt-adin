@@ -332,7 +332,7 @@
    ============================================= */
 .color-picker-popup {
   position: fixed;
-  z-index: 1000;
+  z-index: 3000;
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
@@ -460,9 +460,8 @@
   z-index: 2000;
   background: rgba(0,0,0,0.3);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding-top: 40px;
 }
 
 .autosum-popup__inner {
@@ -496,7 +495,7 @@
 
 .autosum-row {
   display: grid;
-  grid-template-columns: 24px 1fr;
+  grid-template-columns: 24px 1fr 20px;
   gap: 6px;
   align-items: center;
   padding: 4px 2px;
@@ -510,6 +509,11 @@
   gap: 3px;
 }
 
+.autosum-dots--hidden .color-dot {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .autosum-content {
   font-size: 12px;
   font-weight: 600;
@@ -518,6 +522,24 @@
   border-radius: 3px;
   cursor: default;
 }
+
+.autosum-delete-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #d1d5db;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.autosum-delete-btn:hover { background: #fef2f2; border-color: #fca5a5; color: #ef4444; }
 
 .autosum-popup__footer {
   padding: 8px 10px;
