@@ -758,7 +758,7 @@ async function placeErrorTextOnSlide(message) {
 
 // ─── 集計処理 ─────────────────────────────────────────────
 
-async function sumNumbersByTextColor(targetTextColor) {
+async function sumNumbersByTextColor(targetTextColor, decimalPlaces = null) {
   setResult({ text: "集計中..." });
 
   await PowerPoint.run(async (context) => {
@@ -775,8 +775,9 @@ async function sumNumbersByTextColor(targetTextColor) {
 
     if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
 
-    const total = String(sum(numbers));
-    setResult({ text: total, color: targetTextColor, copyValue: total });
+    const total     = sum(numbers);
+    const totalStr  = decimalPlaces !== null ? total.toFixed(decimalPlaces) : String(total);
+    setResult({ text: totalStr, color: targetTextColor, copyValue: totalStr });
   });
 }
 
@@ -784,7 +785,7 @@ async function sumNumbersBySelectedTextColor() {
   setResult({ text: "選択中の文字色を取得中..." });
   const selected = await getSelectedTextInfo();
   if (!selected.ok) { setResult({ text: selected.message }); return; }
-  await sumNumbersByTextColor(selected.textColor);
+  await sumNumbersByTextColor(selected.textColor, selected.decimalPlaces ?? null);
 }
 
 /**
@@ -1004,7 +1005,11 @@ async function loadSelectedTextRange(context) {
     return { ok: false, message: "選択中テキストの文字色を取得できませんでした。1色の文字だけを選択してください。" };
   }
 
-  return { ok: true, textColor };
+  // 選択テキストの小数桁数を取得（例: "1.50" → 2, "3" → 0）
+  const selectedText = selectedTextRange.text.trim();
+  const decimalPlaces = getDecimalPlaces(selectedText);
+
+  return { ok: true, textColor, decimalPlaces };
 }
 
 async function getSelectedTextInfo() {
@@ -1124,6 +1129,20 @@ async function getShapeFillColor(context, shape) {
 }
 
 // ─── テキスト処理ユーティリティ ───────────────────────────
+
+/**
+ * テキストから小数桁数を取得する。
+ * 数値に変換できるテキストの小数点以下の桁数を返す。
+ * 変換できない場合は null を返す。
+ */
+function getDecimalPlaces(text) {
+  const trimmed = text.trim();
+  const num = Number(trimmed);
+  if (isNaN(num)) return null;
+  const dotIndex = trimmed.indexOf(".");
+  if (dotIndex === -1) return 0;
+  return trimmed.length - dotIndex - 1;
+}
 
 function extractNumbers(text) {
   // extractTextByColor は色違い文字をスペースに置換する。
