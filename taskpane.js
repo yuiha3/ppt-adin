@@ -115,11 +115,18 @@ function renderDefectButtons() {
   const container = document.getElementById("defectButtonGrid");
   if (!container) return;
 
-  DEFECT_GROUPS.forEach(({ label, items }) => {
-    const groupLabel = document.createElement("p");
-    groupLabel.className = "defect-group-label";
-    groupLabel.textContent = label;
-    container.appendChild(groupLabel);
+  DEFECT_GROUPS.forEach(({ label, items }, groupIdx) => {
+    // <details> 折りたたみで各ジャンルを表示（最初のグループは開いた状態）
+    const details = document.createElement("details");
+    details.className = "defect-group";
+    if (groupIdx === 0) details.open = true;
+
+    const summary = document.createElement("summary");
+    summary.textContent = label;
+    details.appendChild(summary);
+
+    const btnGrid = document.createElement("div");
+    btnGrid.className = "defect-group__buttons";
 
     items.forEach((item) => {
       const button = document.createElement("button");
@@ -127,8 +134,11 @@ function renderDefectButtons() {
       button.className = "defectButton";
       button.textContent = item.label ?? item.content;
       button.addEventListener("click", () => addTableRow(item));
-      container.appendChild(button);
+      btnGrid.appendChild(button);
     });
+
+    details.appendChild(btnGrid);
+    container.appendChild(details);
   });
 
   shrinkOverflowButtons(container);

@@ -87,10 +87,14 @@
     <!-- 表作成タブ -->
     <section id="tableTab" class="tabContent">
 
-      <p class="tab-description">ボタンを押すと行が追加されます。</p>
-
+      <!-- 項目追加（折りたたみ式） -->
+      <p class="section-label">項目を追加</p>
       <div id="defectButtonGrid" class="defectButtonGrid"></div>
 
+      <div class="divider"></div>
+
+      <!-- 追加された行 -->
+      <p class="section-label">行一覧</p>
       <div class="tableHeader" aria-hidden="true">
         <div></div>
         <div>内容</div>
@@ -101,11 +105,18 @@
 
       <div id="tableRows" class="tableRows"></div>
 
+      <!-- アクション -->
       <div class="tableActionArea">
-        <div class="action-btn-row">
-          <button id="autoSumButton" type="button" class="output-btn output-btn--sub">
-            自動集計
+        <div class="action-list" style="margin-bottom:0">
+          <button id="autoSumButton" type="button" class="action-btn teal">
+            <span class="btn-dot"></span>
+            <span class="btn-label">
+              自動集計
+              <span class="btn-sub">丸の色で数量を自動入力</span>
+            </span>
           </button>
+        </div>
+        <div class="table-output-row">
           <button id="outputTableButton" type="button" class="output-btn">
             凡例表出力
           </button>

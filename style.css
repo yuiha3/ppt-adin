@@ -154,6 +154,7 @@
 .action-btn.blue  { --btn-color: #0070c0; }
 .action-btn.green { --btn-color: #00b050; }
 .action-btn.gray  { --btn-color: #9ca3af; }
+.action-btn.teal  { --btn-color: #0f766e; }
 .action-btn.dark  { --btn-color: #374151; }
 
 /* =============================================
@@ -168,34 +169,62 @@
 /* =============================================
    Defect Buttons（表作成タブ）
    ============================================= */
-.tab-description {
-  font-size: 11px;
-  color: #6b7280;
-  margin: 0 0 8px;
-  line-height: 1.5;
+.defectButtonGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 0;
 }
 
-.defectButtonGrid {
+/* ジャンルラベルは折りたたみsummaryで代用 */
+.defect-group {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.defect-group:last-child { margin-bottom: 8px; }
+
+.defect-group summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: #f8fafc;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.defect-group summary::-webkit-details-marker { display: none; }
+
+.defect-group summary::after {
+  content: "▾";
+  font-size: 10px;
+  color: #9ca3af;
+  transition: transform 0.15s;
+}
+
+.defect-group[open] summary::after {
+  transform: rotate(-180deg);
+}
+
+.defect-group__buttons {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 3px;
-  margin-bottom: 12px;
+  padding: 6px;
+  background: #ffffff;
 }
-
-.defect-group-label {
-  grid-column: 1 / -1;
-  font-size: 10px;
-  font-weight: 700;
-  color: #9ca3af;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin: 8px 0 3px;
-}
-
-.defect-group-label:first-child { margin-top: 0; }
 
 .defectButton {
-  padding: 6px 8px;
+  padding: 6px 4px;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   background: #ffffff;
@@ -203,11 +232,10 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
   text-align: center;
   width: 100%;
-  /* 高さを揃えるため折り返しを許容しつつ1行高さに固定 */
-  height: 34px;
+  height: 30px;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -239,32 +267,46 @@
 }
 
 .tableHeader {
-  padding: 5px 4px;
-  font-size: 10px;
+  padding: 4px 4px 4px 6px;
+  font-size: 9px;
   font-weight: 700;
-  color: #9ca3af;
-  letter-spacing: 0.05em;
+  color: #b0b8c4;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   border-bottom: 1px solid #e5e7eb;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .tableRows {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
+}
+
+/* 各行をカード風の背景で包む */
+.tableInputRow {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  padding: 3px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.tableInputRow:focus-within {
+  border-color: #0070c0;
+  box-shadow: 0 0 0 2px rgba(0,112,192,0.08);
 }
 
 .tableInput {
   width: 100%;
-  padding: 7px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  padding: 5px 6px;
+  border: none;
+  border-radius: 4px;
   font-family: "Yu Gothic UI", "Meiryo", sans-serif;
   font-size: 12px;
-  background: #ffffff;
+  background: transparent;
   color: #1a1d23;
-  transition: border-color 0.12s, box-shadow 0.12s;
+  transition: background 0.1s;
   /* スピナー（数値上下ボタン）を非表示 */
   -moz-appearance: textfield;
 }
@@ -277,8 +319,8 @@
 
 .tableInput:focus {
   outline: none;
-  border-color: #0070c0;
-  box-shadow: 0 0 0 2px rgba(0,112,192,0.12);
+  background: #f0f4ff;
+  border-radius: 4px;
 }
 
 .quantityInput  { text-align: right; }
@@ -287,7 +329,7 @@
 .quantityTextarea {
   text-align: left;
   resize: vertical;
-  min-height: 54px;
+  min-height: 48px;
   line-height: 1.5;
 }
 
@@ -407,21 +449,22 @@
    Table Action
    ============================================= */
 .tableActionArea {
-  margin-top: 10px;
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
-.action-btn-row {
+/* 凡例表出力・集計表出力の2列ボタン */
+.table-output-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 4px;
 }
 
 .output-btn {
   width: 100%;
-  padding: 8px 4px;
+  padding: 8px 6px;
   border: none;
   border-radius: 6px;
   background: #0070c0;
@@ -438,12 +481,6 @@
 
 .output-btn:hover  { background: #005fa3; }
 .output-btn:active { background: #004f8a; }
-
-.output-btn--sub {
-  background: #6b7280;
-}
-.output-btn--sub:hover  { background: #4b5563; }
-.output-btn--sub:active { background: #374151; }
 
 .output-btn--green {
   background: #059669;
@@ -592,24 +629,24 @@
    Row Delete Button
    ============================================= */
 .row-delete-btn {
-  width: 24px;
+  width: 22px;
   height: 100%;
-  min-height: 30px;
+  min-height: 28px;
   padding: 0;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  background: #ffffff;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
   color: #d1d5db;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition: background 0.1s, color 0.1s;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.row-delete-btn:hover { background: #fef2f2; border-color: #fca5a5; color: #ef4444; }
+.row-delete-btn:hover { background: #fee2e2; color: #ef4444; }
 
 /* =============================================
    Sticky Footer Layout
