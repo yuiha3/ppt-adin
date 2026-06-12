@@ -294,26 +294,35 @@ async function outputTableToSlide() {
     const headers   = ["内容", "数量", "単位"];
     const colWidths = [80, 60, 105]; // pt
     const rowHeight = 13.5;          // pt
+    const PT        = 12700;         // 1pt = 12700 EMU
 
-    // Step1: addTable で表を作成
+    // Step1: addTable で表を作成し、shapes を再ロードして shape を取得
+    const shapesBefore = slide.shapes;
+    shapesBefore.load("count");
+    await context.sync();
+    const countBefore = shapesBefore.count;
+
     slide.shapes.addTable(rowCount, 3);
-    slide.shapes.load("items");
     await context.sync();
 
-    // addTable で追加した表は shapes の末尾に入る
-    const tableShape = slide.shapes.items[slide.shapes.items.length - 1];
+    // 追加された shape を index で取得
+    const tableShape = slide.shapes.getItemAt(countBefore);
+    tableShape.load(["id", "left", "top", "width", "height"]);
+    await context.sync();
 
     // Step2: 位置を設定
     tableShape.left = 30;
     tableShape.top  = 120;
-
-    // Step3: 表のOOXMLを取得してスタイル適用後に上書き
-    const ooxmlProxy = tableShape.getOoxml();
     await context.sync();
 
-    const styledXml = buildStyledTableOoxml(
-      ooxmlProxy.value, rows, headers, colWidths, rowHeight
-    );
+    // Step3: OOXML取得 → スタイル適用 → 上書き
+    // getOoxml は load 後に value を取得するプロキシパターン
+    const ooxmlLoad = tableShape.getOoxml();
+    await context.sync();
+
+    const baseXml   = ooxmlLoad.value;
+    const styledXml = buildStyledTableOoxml(baseXml, rows, headers, colWidths, rowHeight);
+
     tableShape.setOoxml(styledXml);
     await context.sync();
 
