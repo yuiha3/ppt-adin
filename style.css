@@ -565,11 +565,33 @@
 
 .autosum-row {
   display: grid;
-  grid-template-columns: 24px 1fr 20px;
+  grid-template-columns: 24px 1fr 20px 20px;
   gap: 6px;
   align-items: center;
   padding: 4px 2px;
   border-radius: 4px;
+}
+
+.autosum-area-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  title: "面積として計算";
+}
+
+.autosum-area-check--hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.autosum-area-checkbox {
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+  accent-color: #0f766e;
 }
 
 .autosum-dots {

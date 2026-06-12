@@ -409,12 +409,21 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
   if (fontColor) content.style.color = fontColor;
   if (fillColor) content.style.background = fillColor;
 
+  // 面積チェックボックス（noUnit行は非表示）
+  const areaLabel = document.createElement("label");
+  areaLabel.className = showDots ? "autosum-area-check" : "autosum-area-check autosum-area-check--hidden";
+  areaLabel.title = "面積として計算する";
+  const areaCheckbox = document.createElement("input");
+  areaCheckbox.type = "checkbox";
+  areaCheckbox.className = "autosum-area-checkbox";
+  areaLabel.appendChild(areaCheckbox);
+
   const delBtn = Object.assign(document.createElement("button"), {
     type: "button", className: "autosum-delete-btn", textContent: "×"
   });
   delBtn.addEventListener("click", () => rowEl.remove());
 
-  rowEl.append(dots, content, delBtn);
+  rowEl.append(dots, content, areaLabel, delBtn);
   return rowEl;
 }
 
@@ -443,13 +452,22 @@ async function runAutoSum(activePopupRows, tableRowEls) {
       continue;
     }
 
-    const fontColor = popupRow.querySelector(".color-dot[data-color-type='font']")?.dataset.color ?? null;
-    const fillColor = popupRow.querySelector(".color-dot[data-color-type='fill']")?.dataset.color ?? null;
+    const fontColor  = popupRow.querySelector(".color-dot[data-color-type='font']")?.dataset.color ?? null;
+    const fillColor  = popupRow.querySelector(".color-dot[data-color-type='fill']")?.dataset.color ?? null;
+    const isAreaMode = popupRow.querySelector(".autosum-area-checkbox")?.checked ?? false;
     if (!fontColor) continue;
 
     try {
-      const result = await sumNumbersByColorDirect(fontColor, fillColor);
-      quantityInput.value = result !== null ? String(result) : "";
+      if (isAreaMode) {
+        const result = await sumAreaByColorDirect(fontColor, fillColor);
+        if (result !== null) {
+          const rounded = Math.ceil(result * 100) / 100;
+          quantityInput.value = rounded.toFixed(2);
+        }
+      } else {
+        const result = await sumNumbersByColorDirect(fontColor, fillColor);
+        quantityInput.value = result !== null ? String(result) : "";
+      }
     } catch (e) { console.error("集計エラー:", e); }
   }
 
@@ -861,6 +879,28 @@ async function sumNumbersByColorDirect(targetTextColor, targetFillColor) {
     if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
 
     return sum(numbers);
+  });
+}
+
+/**
+ * 指定色（フォント色 + オプションで背景色）で面積（数値x数値形式）を合計する（自動集計用）。
+ */
+async function sumAreaByColorDirect(targetTextColor, targetFillColor) {
+  return PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return null;
+
+    const textShapes = await getTextShapes(context, slide, { includeFillColor: !!targetFillColor });
+    const targets = targetFillColor
+      ? textShapes.filter((s) => s.fillColor === targetFillColor)
+      : textShapes;
+
+    let total = 0;
+    for (const item of targets) {
+      const coloredText = await extractTextByColor(context, item.textRange, item.text, targetTextColor);
+      total += extractAreaValues(coloredText);
+    }
+    return total;
   });
 }
 
