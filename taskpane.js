@@ -471,4 +471,8 @@ function setResult({ text, html, color = null, copyValue = null }) {
     btn.disabled = copyValue === null;
     btn.dataset.copyValue = copyValue ?? "";
   }
+
+  if (copyValue !== null) {
+    navigator.clipboard.writeText(copyValue).catch(() => {});
+  }
 }

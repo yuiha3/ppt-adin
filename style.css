@@ -332,22 +332,17 @@ body {
 
 .result-total {
   flex: 1;
-  font-size: 32px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   color: #1a1d23;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+  letter-spacing: 0;
+  line-height: 1.7;
   text-align: center;
   word-break: break-word;
 }
 
-/* 写真番号整理の出力テキスト */
+/* 写真番号整理の出力テキスト（インラインpreの余白リセットのみ） */
 .result-total .outputText {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0;
-  line-height: 1.7;
-  text-align: left;
   white-space: pre-wrap;
   margin: 0;
   padding: 0;
