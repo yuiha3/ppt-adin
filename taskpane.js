@@ -302,13 +302,6 @@ async function outputTableToSlide() {
 
     const solidBorder = { color: "000000", dashStyle: "solid", weight: 1 };
     const noBorder    = { color: "000000", dashStyle: "solid", weight: 0 };
-    const baseCell    = {
-      fill:                { color: "FFFFFF" },
-      font:                { name: "Meiryo", size: 9, bold: true, color: "000000" },
-      horizontalAlignment: "Left",
-      verticalAlignment:   "MiddleCentered",
-      margins:             { top: 0, bottom: 0, left: 5, right: 0 }
-    };
 
     // mergedAreas：noUnit行の数量列(c=1)〜単位列(c=2) を結合
     const mergedAreas = [];
@@ -318,40 +311,43 @@ async function outputTableToSlide() {
       }
     });
 
-    // specificCellProperties を行列で組み立てる
+    // values：テキストは values で渡す（specificCellProperties との混在を避ける）
+    const values = Array.from({ length: rowCount }, (_, r) => {
+      if (r === 0) return [...headers];
+      const d = rows[r - 1];
+      return [d.content, d.quantity, d.unit ?? ""];
+    });
+
+    // specificCellProperties：スタイルのみ（text は含めない）
     const specificCellProperties = Array.from({ length: rowCount }, (_, r) => {
       const isHeader = r === 0;
-      const rowData  = isHeader ? null : rows[r - 1];
-      const isNoUnit = !isHeader && rowData.noUnit;
+      const isNoUnit = !isHeader && rows[r - 1].noUnit;
 
       return Array.from({ length: 3 }, (_, c) => {
-        // 結合エリア内の非左上セル（noUnit行のc=2）は空オブジェクトを渡す
+        // 結合エリア内の非左上セル（noUnit行のc=2）は空オブジェクト
         if (isNoUnit && c === 2) return {};
-
-        const text = isHeader
-          ? headers[c]
-          : [rowData.content, rowData.quantity, rowData.unit][c];
 
         const borders = isHeader
           ? { top: noBorder, left: noBorder, right: noBorder, bottom: solidBorder }
           : { top: solidBorder, left: solidBorder, right: solidBorder, bottom: solidBorder };
 
-        return { ...baseCell, text: text ?? "", borders };
+        return {
+          fill:                { color: "FFFFFF" },
+          font:                { name: "Meiryo", size: 9, bold: true, color: "000000" },
+          horizontalAlignment: "Left",
+          verticalAlignment:   "MiddleCentered",
+          margins:             { top: 0, bottom: 0, left: 5, right: 0 },
+          borders
+        };
       });
     });
 
-    // uniformCellProperties で全セルに Left を先に適用し、
-    // specificCellProperties で各セル固有の設定を上書きする
-    // （デフォルトのテーブルスタイルが horizontalAlignment を上書きするのを防ぐため）
     const tableShape = slide.shapes.addTable(rowCount, 3, {
       left:    30,
       top:     120,
       columns: colWidths.map((w) => ({ columnWidth: w })),
       rows:    Array.from({ length: rowCount }, () => ({ rowHeight })),
-      uniformCellProperties: {
-        horizontalAlignment: "Left",
-        verticalAlignment:   "MiddleCentered"
-      },
+      values,
       mergedAreas,
       specificCellProperties
     });
