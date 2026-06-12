@@ -52,39 +52,11 @@ const DEFECT_GROUPS = [
   },
 ];
 
-Office.onReady(async () => {
+Office.onReady(() => {
   initializeTabs();
   initializeTableBuilder();
   initializeSummaryButtons();
-
-  // ── API バージョン確認用（確認後に削除） ──
-  const v18 = Office.context.requirements.isSetSupported("PowerPointApi", "1.8");
-  const v19 = Office.context.requirements.isSetSupported("PowerPointApi", "1.9");
-  await placeApiVersionOnSlide(v18, v19);
 });
-
-async function placeApiVersionOnSlide(v18, v19) {
-  try {
-    await PowerPoint.run(async (context) => {
-      const slides = context.presentation.slides;
-      slides.load("items");
-      await context.sync();
-      const slide = slides.items[0];
-
-      const shape = slide.shapes.addGeometricShape("rectangle");
-      Object.assign(shape, { left: 50, top: 50, width: 300, height: 60 });
-      shape.fill.setSolidColor("E8F4FD");
-      await context.sync();
-
-      shape.textFrame.textRange.text =
-        "API v1.8: " + (v18 ? "✓" : "✗") + "  /  v1.9: " + (v19 ? "✓" : "✗");
-      Object.assign(shape.textFrame.textRange.font, {
-        size: 11, color: "003366", bold: true, name: "Meiryo"
-      });
-      await context.sync();
-    });
-  } catch { /* スライドが開いていない場合は無視 */ }
-}
 
 // ─── 初期化 ──────────────────────────────────────────────
 
@@ -170,6 +142,18 @@ function shrinkOverflowButtons(container) {
   });
 }
 
+// 色選択丸ボタンを生成するユーティリティ
+function makeColorDot(type, color = null, onClick = null) {
+  const d = document.createElement("button");
+  d.type = "button";
+  d.className = "color-dot";
+  d.dataset.colorType = type;
+  d.title = type === "font" ? "文字色を選択" : "背景色を選択";
+  if (color) { d.style.background = color; d.dataset.color = color; }
+  if (onClick) d.addEventListener("click", onClick);
+  return d;
+}
+
 function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
   const tableRows = document.getElementById("tableRows");
   if (!tableRows) return;
@@ -179,26 +163,14 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
   row.draggable = true;
   if (pinBottom) row.dataset.pinBottom = "true";
 
-  // ハンドル列：上下2つの色選択丸ボタン
   const handleCol = document.createElement("div");
   handleCol.className = "handle-col";
-
-  const dotTop = document.createElement("button");
-  dotTop.type = "button";
-  dotTop.className = "color-dot";
-  dotTop.title = "フォント色を選択";
-  dotTop.dataset.colorType = "font";
-  dotTop.addEventListener("click", () => openColorPicker(dotTop, "font"));
-
-  const dotBottom = document.createElement("button");
-  dotBottom.type = "button";
-  dotBottom.className = "color-dot";
-  dotBottom.title = "背景色を選択";
-  dotBottom.dataset.colorType = "fill";
-  dotBottom.addEventListener("click", () => openColorPicker(dotBottom, "fill"));
-
-  handleCol.append(dotTop, dotBottom);
   if (noUnit) handleCol.classList.add("handle-col--hidden");
+
+  handleCol.append(
+    makeColorDot("font", null, (e) => openColorPicker(e.currentTarget, "font")),
+    makeColorDot("fill", null, (e) => openColorPicker(e.currentTarget, "fill"))
+  );
 
   const quantityEl = noUnit
     ? Object.assign(document.createElement("textarea"), {
@@ -209,9 +181,7 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
     : createTableInput({ className: "quantityInput", placeholder: "数量", inputmode: "numeric" });
 
   const deleteButton = Object.assign(document.createElement("button"), {
-    type:        "button",
-    className:   "row-delete-btn",
-    textContent: "×"
+    type: "button", className: "row-delete-btn", textContent: "×"
   });
   deleteButton.addEventListener("click", () => row.remove());
 
@@ -223,8 +193,13 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
     deleteButton
   );
 
-  const firstPinned = tableRows.querySelector("[data-pin-bottom]");
-  tableRows.insertBefore(row, firstPinned ?? null);
+  // 挿入位置：通常行 → その他(noUnit) → 写真番号(pinBottom) の順
+  const anchor = pinBottom ? null
+    : noUnit ? (tableRows.querySelector("[data-pin-bottom]") ?? null)
+    : (tableRows.querySelector(".noUnitRow:not([data-pin-bottom])")
+        ?? tableRows.querySelector("[data-pin-bottom]")
+        ?? null);
+  tableRows.insertBefore(row, anchor);
 
   setupDragAndDrop(row, tableRows);
   quantityEl.focus();
@@ -232,7 +207,7 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
 
 // ─── ドラッグ&ドロップ ────────────────────────────────────
 let dragSrc    = null;
-let dragOverEl = null;  // 前回ハイライトした要素を記憶し querySelectorAll を省く
+let dragOverEl = null;
 
 function setupDragAndDrop(row, tableRows) {
   row.addEventListener("dragstart", (e) => {
@@ -294,119 +269,102 @@ function openAutoSumPopup() {
 
   closeAutoSumPopup();
 
+  const tableRowEls = [...document.querySelectorAll(".tableInputRow")];
+
   const overlay = document.createElement("div");
   overlay.id = "autoSumPopup";
   overlay.className = "autosum-popup";
-  overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) closeAutoSumPopup();
-  });
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeAutoSumPopup(); });
 
   const inner = document.createElement("div");
   inner.className = "autosum-popup__inner";
 
-  // ヘッダー
   const header = document.createElement("div");
   header.className = "autosum-popup__header";
   header.textContent = "自動集計";
   inner.appendChild(header);
 
-  // 本体：行ごとに丸2つ + 内容テキスト + 削除ボタン
   const body = document.createElement("div");
   body.className = "autosum-popup__body";
-
-  // DOM行との対応を保持（丸の色を参照するため）
-  const tableRowEls = [...document.querySelectorAll(".tableInputRow")];
-
-  rows.forEach((rowData, i) => {
-    const domRow    = tableRowEls[i];
-    const dotTop    = domRow?.querySelector(".color-dot[data-color-type='font']");
-    const dotBot    = domRow?.querySelector(".color-dot[data-color-type='fill']");
-    const fontColor = dotTop?.dataset.color || null;
-    const fillColor = dotBot?.dataset.color || null;
-
-    const rowEl = document.createElement("div");
-    rowEl.className = "autosum-row";
-    rowEl.dataset.rowIndex = String(i);  // 元DOM行との対応付け
-
-    // noUnit行は丸を非表示
-    const showDots = !rowData.noUnit;
-
-    const dots = document.createElement("div");
-    dots.className = showDots ? "autosum-dots" : "autosum-dots autosum-dots--hidden";
-
-    const makeDot = (type, color) => {
-      const d = document.createElement("button");
-      d.type = "button";
-      d.className = "color-dot";
-      d.dataset.colorType = type;
-      d.title = type === "font" ? "文字色を変更" : "背景色を変更";
-      // 色未設定なら背景は設定しない（白+ボーダーのデフォルト外観を保つ）
-      if (color) { d.style.background = color; d.dataset.color = color; }
-      if (showDots) {
-        d.addEventListener("click", () => {
-          openColorPicker(d, type, (selected) => {
-            const target = domRow?.querySelector(`.color-dot[data-color-type='${type}']`);
-            if (target) { target.style.background = selected; target.dataset.color = selected; }
-            const contentEl = rowEl.querySelector(".autosum-content");
-            if (contentEl) {
-              if (type === "font") contentEl.style.color = selected;
-              else contentEl.style.background = selected;
-            }
-          });
-        });
-      }
-      return d;
-    };
-
-    dots.append(makeDot("font", fontColor), makeDot("fill", fillColor));
-    rowEl.appendChild(dots);
-
-    // 内容テキスト
-    const content = document.createElement("span");
-    content.className = "autosum-content";
-    content.textContent = rowData.content;
-    if (fontColor) content.style.color = fontColor;
-    if (fillColor) content.style.background = fillColor;
-    rowEl.appendChild(content);
-
-    // ポップアップ内削除ボタン
-    const delBtn = document.createElement("button");
-    delBtn.type = "button";
-    delBtn.className = "autosum-delete-btn";
-    delBtn.textContent = "×";
-    delBtn.addEventListener("click", () => rowEl.remove());
-    rowEl.appendChild(delBtn);
-
-    body.appendChild(rowEl);
-  });
+  rows.forEach((rowData, i) => body.appendChild(makeAutoSumRow(rowData, i, tableRowEls)));
   inner.appendChild(body);
 
-  // フッター
   const footer = document.createElement("div");
   footer.className = "autosum-popup__footer";
 
-  const runBtn = document.createElement("button");
-  runBtn.type = "button";
-  runBtn.className = "autosum-run-btn";
-  runBtn.textContent = "集計実行";
+  const runBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "autosum-run-btn", textContent: "集計実行"
+  });
   runBtn.addEventListener("click", async () => {
-    // ポップアップ内で削除された行を除外するため、現在表示中の行を取得
     const activePopupRows = [...body.querySelectorAll(".autosum-row")];
     closeAutoSumPopup();
     await runAutoSum(activePopupRows, tableRowEls);
   });
 
-  const closeBtn = document.createElement("button");
-  closeBtn.type = "button";
-  closeBtn.className = "autosum-close-btn";
-  closeBtn.textContent = "閉じる";
+  const closeBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "autosum-close-btn", textContent: "閉じる"
+  });
   closeBtn.addEventListener("click", closeAutoSumPopup);
 
   footer.append(runBtn, closeBtn);
   inner.appendChild(footer);
-
   overlay.appendChild(inner);
   document.body.appendChild(overlay);
+}
+
+/**
+ * 自動集計ポップアップの1行要素を生成する。
+ */
+function makeAutoSumRow(rowData, index, tableRowEls) {
+  const domRow    = tableRowEls[index];
+  const fontColor = domRow?.querySelector(".color-dot[data-color-type='font']")?.dataset.color ?? null;
+  const fillColor = domRow?.querySelector(".color-dot[data-color-type='fill']")?.dataset.color ?? null;
+  const showDots  = !rowData.noUnit;
+
+  const rowEl = document.createElement("div");
+  rowEl.className = "autosum-row";
+  rowEl.dataset.rowIndex = String(index);
+
+  // 丸2つ
+  const dots = document.createElement("div");
+  dots.className = showDots ? "autosum-dots" : "autosum-dots autosum-dots--hidden";
+
+  const makeDotWithSync = (type, color) => {
+    const d = makeColorDot(type, color, showDots ? () => {
+      openColorPicker(d, type, (selected) => {
+        // 元DOM行の丸にも反映
+        const target = domRow?.querySelector(`.color-dot[data-color-type='${type}']`);
+        if (target) { target.style.background = selected; target.dataset.color = selected; }
+        // テキスト表示を更新
+        const contentEl = rowEl.querySelector(".autosum-content");
+        if (contentEl) {
+          if (type === "font") contentEl.style.color = selected;
+          else contentEl.style.background = selected;
+        }
+      });
+    } : null);
+    return d;
+  };
+
+  dots.append(makeDotWithSync("font", fontColor), makeDotWithSync("fill", fillColor));
+  rowEl.appendChild(dots);
+
+  // 内容テキスト
+  const content = document.createElement("span");
+  content.className = "autosum-content";
+  content.textContent = rowData.content;
+  if (fontColor) content.style.color = fontColor;
+  if (fillColor) content.style.background = fillColor;
+  rowEl.appendChild(content);
+
+  // ポップアップ内削除ボタン
+  const delBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "autosum-delete-btn", textContent: "×"
+  });
+  delBtn.addEventListener("click", () => rowEl.remove());
+  rowEl.appendChild(delBtn);
+
+  return rowEl;
 }
 
 function closeAutoSumPopup() {
@@ -414,101 +372,50 @@ function closeAutoSumPopup() {
 }
 
 /**
- * 自動集計実行。
- * @param {Element[]} activePopupRows - ポップアップ内で現在表示中の行要素
- * @param {Element[]} tableRowEls     - 元のDOM行要素（数量入力欄の書き込み先）
- *
- * 処理：
- *   - ポップアップ行の上丸(font)の色でスライド上の数字を集計
- *   - 下丸(fill)にも色がある場合は「フォント色かつ背景色」の条件で集計
- *   - フォント色が未設定の行はスキップ
- *   - 元のDOM行の数量入力欄に結果を書き込む
+ * 自動集計実行。ポップアップ内で現在表示中の行から色を読み、数量欄に書き込む。
  */
 async function runAutoSum(activePopupRows, tableRowEls) {
   setResult({ text: "自動集計中..." });
 
   for (const popupRow of activePopupRows) {
-    // ポップアップ行のインデックスを取得し、対応する元DOM行を特定
-    const rowIndex = popupRow.dataset.rowIndex !== undefined
-      ? Number(popupRow.dataset.rowIndex)
-      : null;
-    if (rowIndex === null) continue;
+    const rowIndex = Number(popupRow.dataset.rowIndex);
+    if (isNaN(rowIndex)) continue;
 
     const domRow        = tableRowEls[rowIndex];
     const quantityInput = domRow?.querySelector(".quantityInput");
     if (!quantityInput) continue;
 
-    // ポップアップ内の丸から現在の色を取得
-    const fontDot   = popupRow.querySelector(".color-dot[data-color-type='font']");
-    const fillDot   = popupRow.querySelector(".color-dot[data-color-type='fill']");
-    const fontColor = fontDot?.dataset.color ?? null;
-    const fillColor = fillDot?.dataset.color ?? null;
+    // 写真番号行：写真番号集計を実行
+    if (domRow?.dataset.pinBottom === "true") {
+      try { quantityInput.value = await collectPhotoCodesFromSlide(); }
+      catch (e) { console.error("写真番号集計エラー:", e); }
+      continue;
+    }
 
-    // フォント色が未設定の行はスキップ
+    const fontColor = popupRow.querySelector(".color-dot[data-color-type='font']")?.dataset.color ?? null;
+    const fillColor = popupRow.querySelector(".color-dot[data-color-type='fill']")?.dataset.color ?? null;
     if (!fontColor) continue;
 
     try {
       const result = await sumNumbersByColorDirect(fontColor, fillColor);
       quantityInput.value = result !== null ? String(result) : "";
-    } catch (e) {
-      console.error("集計エラー:", e);
-    }
+    } catch (e) { console.error("集計エラー:", e); }
   }
 
   setResult({ text: "自動集計が完了しました" });
 }
 
-/**
- * 指定色（フォント色 + オプションで背景色）で数字を合計する。
- */
-async function sumNumbersByColorDirect(targetTextColor, targetFillColor) {
-  return PowerPoint.run(async (context) => {
-    const slide = await getCurrentSlide(context);
-    if (!slide) return null;
-
-    const textShapes = await getTextShapes(
-      context, slide,
-      { includeFillColor: !!targetFillColor }
-    );
-
-    const targets = targetFillColor
-      ? textShapes.filter((s) => s.fillColor === targetFillColor)
-      : textShapes;
-
-    const numbers = [];
-    for (const item of targets) {
-      const coloredText = await extractTextByColor(
-        context, item.textRange, item.text, targetTextColor
-      );
-      numbers.push(...extractNumbers(coloredText));
-    }
-    return sum(numbers);
-  });
-}
-
 // ─── カラーピッカー ──────────────────────────────────────
 
-/**
- * スライド上の色を収集してポップアップを表示し、選択色を丸ボタンに反映する。
- * @param {HTMLElement} dotEl  - クリックされた丸ボタン
- * @param {"font"|"fill"} colorType - 取得する色の種類
- */
 async function openColorPicker(dotEl, colorType, onSelect = null) {
-  const title = colorType === "font"
-    ? "集計したい文字色を選択"
-    : "集計したい背景色を選択";
+  const title = colorType === "font" ? "集計したい文字色を選択" : "集計したい背景色を選択";
 
-  // 既存のポップアップを閉じる
   closeColorPicker();
 
   let colors = [];
-  try {
-    colors = await collectSlideColors(colorType);
-  } catch (e) {
-    console.error("色の取得に失敗しました:", e);
-  }
+  try { colors = await collectSlideColors(colorType); }
+  catch (e) { console.error("色の取得に失敗しました:", e); }
 
-  // ポップアップを生成
   const popup = document.createElement("div");
   popup.id = "colorPickerPopup";
   popup.className = "color-picker-popup";
@@ -518,56 +425,47 @@ async function openColorPicker(dotEl, colorType, onSelect = null) {
   titleEl.textContent = title;
   popup.appendChild(titleEl);
 
-  const grid = document.createElement("div");
-  grid.className = "color-picker-grid";
-
   if (colors.length === 0) {
     const empty = document.createElement("p");
     empty.className = "color-picker-empty";
     empty.textContent = "色が見つかりませんでした";
     popup.appendChild(empty);
   } else {
+    const grid = document.createElement("div");
+    grid.className = "color-picker-grid";
     colors.forEach((color) => {
-      const swatch = document.createElement("button");
-      swatch.type = "button";
-      swatch.className = "color-swatch";
-      swatch.title = color;
+      const swatch = Object.assign(document.createElement("button"), {
+        type: "button", className: "color-swatch", title: color
+      });
       swatch.style.background = color;
       swatch.addEventListener("click", () => {
         dotEl.style.background = color;
         dotEl.dataset.color = color;
         closeColorPicker();
-        if (onSelect) onSelect(color);
+        onSelect?.(color);
       });
       grid.appendChild(swatch);
     });
     popup.appendChild(grid);
   }
 
-  const closeBtn = document.createElement("button");
-  closeBtn.type = "button";
-  closeBtn.className = "color-picker-close";
-  closeBtn.textContent = "閉じる";
+  const closeBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "color-picker-close", textContent: "閉じる"
+  });
   closeBtn.addEventListener("click", closeColorPicker);
   popup.appendChild(closeBtn);
 
-  // ポップアップをdotElの近くに配置
   document.body.appendChild(popup);
   const rect = dotEl.getBoundingClientRect();
   popup.style.top  = (rect.bottom + window.scrollY + 4) + "px";
   popup.style.left = Math.max(4, rect.left + window.scrollX - popup.offsetWidth / 2) + "px";
 
-  // 外側クリックで閉じる
-  setTimeout(() => {
-    document.addEventListener("click", onOutsideClick);
-  }, 0);
+  setTimeout(() => document.addEventListener("click", onOutsideClick), 0);
 }
 
 function onOutsideClick(e) {
   const popup = document.getElementById("colorPickerPopup");
-  if (popup && !popup.contains(e.target)) {
-    closeColorPicker();
-  }
+  if (popup && !popup.contains(e.target)) closeColorPicker();
 }
 
 function closeColorPicker() {
@@ -587,36 +485,23 @@ async function collectSlideColors(colorType) {
     shapes.load("items");
     await context.sync();
 
-    const candidates = [];
-    for (const shape of shapes.items) {
-      if (colorType === "fill") {
-        shape.fill.load("foregroundColor");
-        candidates.push({ shape, type: "fill" });
-      } else {
-        try {
-          const tf = shape.getTextFrameOrNullObject();
-          tf.load("hasText");
-          candidates.push({ shape, tf, type: "font" });
-        } catch { /* スキップ */ }
-      }
-    }
-    await context.sync();
-
     const colorSet = new Set();
 
-    for (const item of candidates) {
-      if (item.type === "fill") {
-        const c = normalizeColor(item.shape.fill.foregroundColor);
+    if (colorType === "fill") {
+      for (const shape of shapes.items) {
+        shape.fill.load("foregroundColor");
+      }
+      await context.sync();
+      for (const shape of shapes.items) {
+        const c = normalizeColor(shape.fill.foregroundColor);
         if (c && c !== "#ffffff" && c !== "#000000") colorSet.add(c);
-      } else {
-        if (item.tf.isNullObject || !item.tf.hasText) continue;
-        // テキストを文字単位で色取得
-        const textRange = item.tf.textRange;
-        textRange.load("text");
-        await context.sync();
-        const text = textRange.text || "";
-        const charRanges = Array.from({ length: Math.min(text.length, 200) }, (_, i) => {
-          const cr = textRange.getSubstring(i, 1);
+      }
+    } else {
+      // フォント色：getTextShapes を流用して文字色を収集
+      const textShapes = await getTextShapes(context, slide);
+      for (const item of textShapes) {
+        const charRanges = Array.from({ length: Math.min(item.text.length, 200) }, (_, i) => {
+          const cr = item.textRange.getSubstring(i, 1);
           cr.font.load("color");
           return cr;
         });
@@ -642,16 +527,12 @@ async function collectSlideColors(colorType) {
  *   1行目：ヘッダー（下罫線のみ）
  *   2行目以降：全罫線 黒 1pt
  *   全セル：背景白、余白 上下0 左5pt、垂直中央、フォント9pt 黒 太字 メイリオ
- *   数量列(2列目)：左余白0、横中央揃え
  *   行高さ：13.5pt
  */
 async function outputTableToSlide(includeQuantity = false) {
   const rows = collectTableRows();
 
-  if (rows.length === 0) {
-    setResult({ text: "行がありません。" });
-    return;
-  }
+  if (rows.length === 0) { setResult({ text: "行がありません。" }); return; }
 
   setResult({ text: "出力中..." });
 
@@ -661,63 +542,46 @@ async function outputTableToSlide(includeQuantity = false) {
 
     const rowCount  = rows.length + 1;
     const headers   = ["内容", "数量", "単位"];
-    const colWidths = [80, 60, 105]; // pt
-    const rowHeight = 13.5;          // pt
+    const colWidths = [80, 60, 105];
+    const rowHeight = 13.5;
 
     const solidBorder = { color: "000000", dashStyle: "solid", weight: 1 };
     const noBorder    = { color: "000000", dashStyle: "solid", weight: 0 };
 
-    // mergedAreas：noUnit行の数量列(c=1)〜単位列(c=2) を結合
-    const mergedAreas = [];
-    rows.forEach((row, i) => {
-      if (row.noUnit) {
-        mergedAreas.push({ rowIndex: i + 1, columnIndex: 1, rowCount: 1, columnCount: 2 });
-      }
-    });
+    const mergedAreas = rows
+      .map((r, i) => r.noUnit ? { rowIndex: i + 1, columnIndex: 1, rowCount: 1, columnCount: 2 } : null)
+      .filter(Boolean);
 
-    // values：テキストを2次元配列で渡す
     const values = Array.from({ length: rowCount }, (_, r) => {
       if (r === 0) return [...headers];
       const d = rows[r - 1];
-      // 凡例表出力（includeQuantity=false）：数量は空欄。写真番号行のみ固定テキスト
-      let qty = "";
-      if (includeQuantity) {
-        qty = d.quantity;
-      } else if (d.pinBottom) {
-        qty = "A-1, B-1, C-1...";
-      }
+      const qty = includeQuantity ? d.quantity : (d.pinBottom ? "A-1, B-1, C-1..." : "");
       return [d.content, qty, d.unit ?? ""];
     });
 
-    // specificCellProperties：フォント・罫線・背景・余白を設定する
+    const cellStyle = {
+      fill:    { color: "FFFFFF" },
+      font:    { name: "Meiryo", size: 9, bold: true, color: "000000" },
+      margins: { top: 0, bottom: 0, left: 5, right: 0 }
+    };
+
     const specificCellProperties = Array.from({ length: rowCount }, (_, r) => {
       const isHeader = r === 0;
       const isNoUnit = !isHeader && rows[r - 1].noUnit;
-
       return Array.from({ length: 3 }, (_, c) => {
         if (isNoUnit && c === 2) return {};
-
         const borders = isHeader
           ? { top: noBorder, left: noBorder, right: noBorder, bottom: solidBorder }
           : { top: solidBorder, left: solidBorder, right: solidBorder, bottom: solidBorder };
-
-        return {
-          fill:    { color: "FFFFFF" },
-          font:    { name: "Meiryo", size: 9, bold: true, color: "000000" },
-          margins: { top: 0, bottom: 0, left: 5, right: 0 },
-          borders
-        };
+        return { ...cellStyle, borders };
       });
     });
 
-    const tableShape = slide.shapes.addTable(rowCount, 3, {
-      left:    30,
-      top:     120,
+    slide.shapes.addTable(rowCount, 3, {
+      left: 30, top: 120,
       columns: colWidths.map((w) => ({ columnWidth: w })),
       rows:    Array.from({ length: rowCount }, () => ({ rowHeight })),
-      values,
-      mergedAreas,
-      specificCellProperties
+      values, mergedAreas, specificCellProperties
     });
 
     await context.sync();
@@ -725,9 +589,6 @@ async function outputTableToSlide(includeQuantity = false) {
   });
 }
 
-/**
- * tableRows DOM から行データを収集する。
- */
 function collectTableRows() {
   const container = document.getElementById("tableRows");
   if (!container) return [];
@@ -766,9 +627,6 @@ function bindClick(elementId, handler) {
   });
 }
 
-/**
- * エラーメッセージをスライド上に図形として配置する（デバッグ用）。
- */
 async function placeErrorTextOnSlide(message) {
   await PowerPoint.run(async (context) => {
     let slide;
@@ -789,18 +647,14 @@ async function placeErrorTextOnSlide(message) {
     shape.fill.setSolidColor("FFEEEE");
     await context.sync();
 
-    const font = shape.textFrame.textRange.font;
     shape.textFrame.textRange.text = "DEBUG ERROR:\n" + message;
-    Object.assign(font, { size: 10, color: "CC0000", bold: true, name: "Meiryo" });
+    Object.assign(shape.textFrame.textRange.font, { size: 10, color: "CC0000", bold: true, name: "Meiryo" });
     await context.sync();
   });
 }
 
 // ─── 集計処理 ─────────────────────────────────────────────
 
-/**
- * 指定した文字色の数字を合計する。
- */
 async function sumNumbersByTextColor(targetTextColor, label) {
   setResult({ text: "集計中..." });
 
@@ -819,9 +673,6 @@ async function sumNumbersByTextColor(targetTextColor, label) {
   });
 }
 
-/**
- * 選択中テキストの文字色で数字を合計する。
- */
 async function sumNumbersBySelectedTextColor() {
   setResult({ text: "選択中の文字色を取得中..." });
   const selected = await getSelectedTextInfo();
@@ -829,9 +680,6 @@ async function sumNumbersBySelectedTextColor() {
   await sumNumbersByTextColor(selected.textColor, `選択中の文字色 ${selected.textColor}`);
 }
 
-/**
- * 選択中テキストの文字色＋図形の背景色で数字を合計する。
- */
 async function sumNumbersBySelectedTextColorAndFillColor() {
   setResult({ text: "選択中の文字色と背景色を取得中..." });
   const selected = await getSelectedTextAndFillInfo();
@@ -842,8 +690,8 @@ async function sumNumbersBySelectedTextColorAndFillColor() {
     if (!slide) return;
 
     const numbers = [];
-    const textShapes = await getTextShapes(context, slide, { includeFillColor: true });
-    for (const item of textShapes.filter((s) => s.fillColor === selected.fillColor)) {
+    for (const item of (await getTextShapes(context, slide, { includeFillColor: true }))
+        .filter((s) => s.fillColor === selected.fillColor)) {
       const coloredText = await extractTextByColor(context, item.textRange, item.text, selected.textColor);
       numbers.push(...extractNumbers(coloredText));
     }
@@ -854,8 +702,45 @@ async function sumNumbersBySelectedTextColorAndFillColor() {
 }
 
 /**
- * 指定色の A-1 形式コードをアルファベットごとに連番圧縮する。
+ * 指定色（フォント色 + オプションで背景色）で数字を合計する（自動集計用）。
  */
+async function sumNumbersByColorDirect(targetTextColor, targetFillColor) {
+  return PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return null;
+
+    const textShapes = await getTextShapes(context, slide, { includeFillColor: !!targetFillColor });
+    const targets = targetFillColor
+      ? textShapes.filter((s) => s.fillColor === targetFillColor)
+      : textShapes;
+
+    const numbers = [];
+    for (const item of targets) {
+      const coloredText = await extractTextByColor(context, item.textRange, item.text, targetTextColor);
+      numbers.push(...extractNumbers(coloredText));
+    }
+    return sum(numbers);
+  });
+}
+
+/**
+ * A-1形式コードをスライドから収集してアルファベット別に連番圧縮する。
+ * formatCodesByTextColor・collectPhotoCodesFromSlide の共通ロジック。
+ */
+async function collectGroupedCodes(context, slides, targetTextColor) {
+  const grouped = {};
+  for (const slide of slides) {
+    for (const item of await getTextShapes(context, slide)) {
+      const coloredText = await extractTextByColor(context, item.textRange, item.text, targetTextColor);
+      for (const { letter, number } of extractLetterCodes(coloredText)) {
+        (grouped[letter] ??= []).push(number);
+      }
+    }
+  }
+  return Object.keys(grouped).sort()
+    .map((letter) => `${letter}-${compressNumberRanges(grouped[letter])}`);
+}
+
 async function formatCodesByTextColor(targetTextColor, allSlides = false) {
   setResult({ text: allSlides ? "全スライドを整理中..." : "整理中..." });
 
@@ -872,19 +757,8 @@ async function formatCodesByTextColor(targetTextColor, allSlides = false) {
       slides = [current];
     }
 
-    const grouped = {};
-    for (const slide of slides) {
-      for (const item of await getTextShapes(context, slide)) {
-        const coloredText = await extractTextByColor(context, item.textRange, item.text, targetTextColor);
-        for (const { letter, number } of extractLetterCodes(coloredText)) {
-          (grouped[letter] ??= []).push(number);
-        }
-      }
-    }
-
-    const outputLines = Object.keys(grouped).sort()
-      .map((letter) => `${letter}-${compressNumberRanges(grouped[letter])}`);
-    const outputText = outputLines.length > 0 ? outputLines.join("\n") : "該当なし";
+    const outputLines = await collectGroupedCodes(context, slides, targetTextColor);
+    const outputText  = outputLines.length > 0 ? outputLines.join("\n") : "該当なし";
 
     setResult({
       html:      `<pre class="outputText" style="color:${targetTextColor}">${escapeHtml(outputText)}</pre>`,
@@ -894,12 +768,17 @@ async function formatCodesByTextColor(targetTextColor, allSlides = false) {
   });
 }
 
+async function collectPhotoCodesFromSlide() {
+  return PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return "";
+    const outputLines = await collectGroupedCodes(context, [slide], COLORS.BLACK);
+    return outputLines.join("\n");
+  });
+}
+
 // ─── PowerPoint API ───────────────────────────────────────
 
-/**
- * テキスト選択情報の共通取得ロジック。
- * テキスト範囲が有効かどうかを検証して返す。
- */
 async function loadSelectedTextRange(context) {
   const selectedTextRange = context.presentation.getSelectedTextRangeOrNullObject();
   selectedTextRange.load("text");
@@ -918,9 +797,6 @@ async function loadSelectedTextRange(context) {
   return { ok: true, textColor };
 }
 
-/**
- * 現在選択中のテキスト情報を取得する。
- */
 async function getSelectedTextInfo() {
   return PowerPoint.run(async (context) => {
     const count = context.presentation.getSelectedShapes().getCount();
@@ -934,9 +810,6 @@ async function getSelectedTextInfo() {
   });
 }
 
-/**
- * 現在選択中のテキスト色と図形の塗りつぶし色を取得する。
- */
 async function getSelectedTextAndFillInfo() {
   return PowerPoint.run(async (context) => {
     const selectedShapes = context.presentation.getSelectedShapes();
@@ -960,9 +833,6 @@ async function getSelectedTextAndFillInfo() {
   });
 }
 
-/**
- * 現在選択中のスライドを1枚取得する。
- */
 async function getCurrentSlide(context) {
   const selectedSlides = context.presentation.getSelectedSlides();
   selectedSlides.load("items");
@@ -977,9 +847,6 @@ async function getCurrentSlide(context) {
   return selectedSlides.items[0];
 }
 
-/**
- * スライド内のテキストを持つ図形を取得する。
- */
 async function getTextShapes(context, slide, options = {}) {
   const shapes = slide.shapes;
   shapes.load("items");
@@ -1016,9 +883,6 @@ async function getTextShapes(context, slide, options = {}) {
   return textShapes.filter((item) => item.text.length > 0);
 }
 
-/**
- * 指定色の文字だけを抽出し、それ以外をスペースに置換する。
- */
 async function extractTextByColor(context, textRange, text, targetColor) {
   const charRanges = Array.from({ length: text.length }, (_, i) => {
     const charRange = textRange.getSubstring(i, 1);
@@ -1100,11 +964,6 @@ function escapeHtml(value) {
 
 /**
  * 結果欄を一括更新する。
- * @param {object}      opts
- * @param {string}      [opts.text]      テキスト表示
- * @param {string}      [opts.html]      HTML表示（text より優先）
- * @param {string|null} [opts.color]     文字色（省略時リセット）
- * @param {string|null} [opts.copyValue] コピーボタンに渡す値（省略時は無効化）
  */
 function setResult({ text, html, color = null, copyValue = null }) {
   const el = document.getElementById(UI.result);
