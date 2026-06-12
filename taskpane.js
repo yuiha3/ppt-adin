@@ -5,8 +5,8 @@ const COLORS = {
 };
 
 const UI = {
-  result:      "result",
-  copyButton:  "copyResultButton"
+  result:     "result",
+  copyButton: "copyResultButton"
 };
 
 const DEFECT_GROUPS = [
@@ -63,10 +63,10 @@ Office.onReady(() => {
 function initializeSummaryButtons() {
   bindClick("sumBlueButton",  () => sumNumbersByTextColor(COLORS.BLUE,  "青文字 RGB(0,112,192)"));
   bindClick("sumGreenButton", () => sumNumbersByTextColor(COLORS.GREEN, "緑文字 RGB(0,176,80)"));
-  bindClick("sumSelectedColorButton",          sumNumbersBySelectedTextColor);
+  bindClick("sumSelectedColorButton",           sumNumbersBySelectedTextColor);
   bindClick("sumSelectedTextAndFillColorButton", sumNumbersBySelectedTextColorAndFillColor);
-  bindClick("formatBlackCodeButton",         () => formatCodesByTextColor(COLORS.BLACK, false));
-  bindClick("formatAllSlidesBlackCodeButton", () => formatCodesByTextColor(COLORS.BLACK, true));
+  bindClick("formatBlackCodeButton",            () => formatCodesByTextColor(COLORS.BLACK, false));
+  bindClick("formatAllSlidesBlackCodeButton",   () => formatCodesByTextColor(COLORS.BLACK, true));
 
   const copyBtn = document.getElementById(UI.copyButton);
   if (!copyBtn) return;
@@ -88,8 +88,8 @@ function initializeSummaryButtons() {
 }
 
 function initializeTabs() {
-  document.querySelectorAll(".tabButton").forEach((button) => {
-    button.addEventListener("click", () => activateTab(button.dataset.tabTarget));
+  document.querySelectorAll(".tabButton").forEach((btn) => {
+    btn.addEventListener("click", () => activateTab(btn.dataset.tabTarget));
   });
 }
 
@@ -98,14 +98,14 @@ function activateTab(tabId) {
   document.querySelectorAll(".tabButton").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.tabTarget === tabId);
   });
-  document.querySelectorAll(".tabContent").forEach((content) => {
-    content.classList.toggle("active", content.id === tabId);
+  document.querySelectorAll(".tabContent").forEach((el) => {
+    el.classList.toggle("active", el.id === tabId);
   });
 }
 
 function initializeTableBuilder() {
   renderDefectButtons();
-  bindClick("outputTableButton",   outputTableToSlide);
+  bindClick("outputTableButton",    outputTableToSlide);
   bindClick("clearTableRowsButton", clearTableRows);
 }
 
@@ -129,17 +129,14 @@ function renderDefectButtons() {
     });
   });
 
-  // テキストが折り返すボタンのフォントサイズを縮小
   shrinkOverflowButtons(container);
   new ResizeObserver(() => shrinkOverflowButtons(container)).observe(container);
 }
 
 function shrinkOverflowButtons(container) {
   container.querySelectorAll(".defectButton").forEach((btn) => {
-    btn.style.fontSize = "";            // いったんリセット
-    if (btn.scrollHeight > btn.clientHeight + 2) {
-      btn.style.fontSize = "10px";
-    }
+    btn.style.fontSize = "";
+    if (btn.scrollHeight > btn.clientHeight + 2) btn.style.fontSize = "10px";
   });
 }
 
@@ -152,60 +149,44 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
   row.draggable = true;
   if (pinBottom) row.dataset.pinBottom = "true";
 
-  // ドラッグハンドル
   const handle = document.createElement("span");
   handle.className = "drag-handle";
   handle.textContent = "⠿";
   handle.setAttribute("aria-hidden", "true");
 
-  // 数量欄：noUnitはtextarea、通常はtext input
-  let quantityEl;
-  if (noUnit) {
-    quantityEl = document.createElement("textarea");
-    quantityEl.className = "tableInput quantityInput quantityTextarea";
-    quantityEl.placeholder = "入力";
-    quantityEl.rows = 2;
-  } else {
-    quantityEl = createTableInput({ className: "quantityInput", placeholder: "数量", inputmode: "numeric" });
-  }
+  const quantityEl = noUnit
+    ? Object.assign(document.createElement("textarea"), {
+        className:   "tableInput quantityInput quantityTextarea",
+        placeholder: "入力",
+        rows:        2
+      })
+    : createTableInput({ className: "quantityInput", placeholder: "数量", inputmode: "numeric" });
 
-  const deleteButton = document.createElement("button");
-  deleteButton.type = "button";
-  deleteButton.className = "row-delete-btn";
-  deleteButton.textContent = "×";
+  const deleteButton = Object.assign(document.createElement("button"), {
+    type:        "button",
+    className:   "row-delete-btn",
+    textContent: "×"
+  });
   deleteButton.addEventListener("click", () => row.remove());
 
-  if (noUnit) {
-    row.append(
-      handle,
-      createTableInput({ value: content, className: "contentInput" }),
-      quantityEl,
-      deleteButton
-    );
-  } else {
-    row.append(
-      handle,
-      createTableInput({ value: content, className: "contentInput" }),
-      quantityEl,
-      createTableInput({ value: unit, className: "unitInput" }),
-      deleteButton
-    );
-  }
+  row.append(
+    handle,
+    createTableInput({ value: content, className: "contentInput" }),
+    quantityEl,
+    ...(noUnit ? [] : [createTableInput({ value: unit, className: "unitInput" })]),
+    deleteButton
+  );
 
-  // pinBottom行（写真番号）は常に最下部、それ以外は最初のpinBottom行の直前に挿入
   const firstPinned = tableRows.querySelector("[data-pin-bottom]");
-  if (firstPinned) {
-    tableRows.insertBefore(row, firstPinned);
-  } else {
-    tableRows.appendChild(row);
-  }
+  tableRows.insertBefore(row, firstPinned ?? null);
 
   setupDragAndDrop(row, tableRows);
   quantityEl.focus();
 }
 
-// ── ドラッグ&ドロップ ────────────────────────────────────
-let dragSrc = null;
+// ─── ドラッグ&ドロップ ────────────────────────────────────
+let dragSrc    = null;
+let dragOverEl = null;  // 前回ハイライトした要素を記憶し querySelectorAll を省く
 
 function setupDragAndDrop(row, tableRows) {
   row.addEventListener("dragstart", (e) => {
@@ -216,37 +197,33 @@ function setupDragAndDrop(row, tableRows) {
 
   row.addEventListener("dragend", () => {
     row.classList.remove("dragging");
-    tableRows.querySelectorAll(".drag-over").forEach((el) => el.classList.remove("drag-over"));
-    dragSrc = null;
+    dragOverEl?.classList.remove("drag-over");
+    dragOverEl = null;
+    dragSrc    = null;
     enforcePinnedRows(tableRows);
   });
 
   row.addEventListener("dragover", (e) => {
     e.preventDefault();
     if (!dragSrc || dragSrc === row) return;
-    e.dataTransfer.dropEffect = "move";
-    tableRows.querySelectorAll(".drag-over").forEach((el) => el.classList.remove("drag-over"));
-    row.classList.add("drag-over");
+    if (dragOverEl !== row) {
+      dragOverEl?.classList.remove("drag-over");
+      row.classList.add("drag-over");
+      dragOverEl = row;
+    }
   });
 
   row.addEventListener("drop", (e) => {
     e.preventDefault();
     if (!dragSrc || dragSrc === row) return;
-    const rows = [...tableRows.children];
-    const srcIdx = rows.indexOf(dragSrc);
-    const tgtIdx = rows.indexOf(row);
-    if (srcIdx < tgtIdx) {
-      tableRows.insertBefore(dragSrc, row.nextSibling);
-    } else {
-      tableRows.insertBefore(dragSrc, row);
-    }
+    const children = [...tableRows.children];
+    const after = children.indexOf(dragSrc) < children.indexOf(row);
+    tableRows.insertBefore(dragSrc, after ? row.nextSibling : row);
   });
 }
 
-// noUnit行が末尾に来るよう整列
 function enforcePinnedRows(tableRows) {
-  const pinned = [...tableRows.querySelectorAll("[data-pin-bottom]")];
-  pinned.forEach((el) => tableRows.appendChild(el));
+  tableRows.querySelectorAll("[data-pin-bottom]").forEach((el) => tableRows.appendChild(el));
 }
 
 function createTableInput({ value = "", className = "", placeholder = "", inputmode = "" }) {
@@ -290,83 +267,54 @@ async function outputTableToSlide() {
     const slide = await getCurrentSlide(context);
     if (!slide) return;
 
-    const rowCount  = rows.length + 1;   // ヘッダー + データ行
+    const rowCount  = rows.length + 1;
     const headers   = ["内容", "数量", "単位"];
-    const colWidths = [80, 60, 105];     // pt
-    const rowHeight = 13.5;              // pt
+    const colWidths = [80, 60, 105]; // pt
+    const rowHeight = 13.5;          // pt
 
-    // ── セルプロパティを行列で組み立てる ──────────────────
     const solidBorder = { color: "000000", dashStyle: "solid", weight: 1 };
     const noBorder    = { color: "000000", dashStyle: "solid", weight: 0 };
 
-    const specificCellProperties = [];
-
-    for (let r = 0; r < rowCount; r++) {
-      const rowProps = [];
+    // セルプロパティを行列で組み立てる
+    const specificCellProperties = Array.from({ length: rowCount }, (_, r) => {
       const isHeader = r === 0;
-
-      for (let c = 0; c < 3; c++) {
-        const isQty  = c === 1;
-        const text   = isHeader
+      return Array.from({ length: 3 }, (_, c) => {
+        const isQty = c === 1;
+        const text  = isHeader
           ? headers[c]
-          : (c === 0 ? rows[r-1].content
-           : c === 1 ? rows[r-1].quantity
-           :           rows[r-1].unit);
+          : [rows[r-1].content, rows[r-1].quantity, rows[r-1].unit][c];
 
-        rowProps.push({
+        return {
           text: text ?? "",
           fill: { color: "FFFFFF" },
-          font: {
-            name:  "Meiryo",
-            size:  9,
-            bold:  true,
-            color: "000000"
-          },
+          font: { name: "Meiryo", size: 9, bold: true, color: "000000" },
           horizontalAlignment: isQty ? "Center" : "Left",
           verticalAlignment:   "MiddleCentered",
-          margins: {
-            top:    0,
-            bottom: 0,
-            left:   isQty ? 0 : 5,
-            right:  0
-          },
+          margins: { top: 0, bottom: 0, left: isQty ? 0 : 5, right: 0 },
           borders: isHeader
             ? { top: noBorder, left: noBorder, right: noBorder, bottom: solidBorder }
             : { top: solidBorder, left: solidBorder, right: solidBorder, bottom: solidBorder }
-        });
-      }
-      specificCellProperties.push(rowProps);
-    }
-
-    // ── addTable で表を一括作成 ────────────────────────────
-    const tableShape = slide.shapes.addTable(rowCount, 3, {
-      specificCellProperties
+        };
+      });
     });
 
+    const tableShape = slide.shapes.addTable(rowCount, 3, { specificCellProperties });
     await context.sync();
 
-    // ── 位置を設定 ────────────────────────────────────────
     tableShape.left = 30;
     tableShape.top  = 120;
 
-    // ── 列幅・行高を設定 ──────────────────────────────────
-    // getTable() でロードしてから操作する
     const table = tableShape.getTable();
-    table.load(["rowCount", "columnCount"]);
+    table.load();
     await context.sync();
 
-    for (let c = 0; c < 3; c++) {
-      table.columns.getItemAt(c).width = colWidths[c];
-    }
-    for (let r = 0; r < rowCount; r++) {
-      table.rows.getItemAt(r).height = rowHeight;
-    }
+    colWidths.forEach((w, c) => { table.columns.getItemAt(c).width = w; });
+    Array.from({ length: rowCount }, (_, r) => { table.rows.getItemAt(r).height = rowHeight; });
 
     await context.sync();
     setResult({ text: "スライドに出力しました" });
   });
 }
-
 
 /**
  * tableRows DOM から行データを収集する。
@@ -384,15 +332,6 @@ function collectTableRows() {
   }).filter((r) => r.content || r.quantity);
 }
 
-function escapeXml(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
 function bindClick(elementId, handler) {
   const element = document.getElementById(elementId);
   if (!element) return;
@@ -402,12 +341,12 @@ function bindClick(elementId, handler) {
     } catch (error) {
       console.error(error);
       const parts = [
-        error?.message     ?? "",
-        error?.code        ?? "",
-        error?.name        ?? "",
-        error?.debugInfo   ? JSON.stringify(error.debugInfo)   : "",
-        error?.innerError  ? JSON.stringify(error.innerError)  : "",
-        error?.traceMessages ? error.traceMessages.join(" / ") : "",
+        error?.message,
+        error?.code,
+        error?.name,
+        error?.debugInfo  ? JSON.stringify(error.debugInfo)  : null,
+        error?.innerError ? JSON.stringify(error.innerError) : null,
+        error?.traceMessages?.join(" / "),
       ].filter(Boolean);
       const msg = parts.join(" | ") || String(error);
       setResult({ text: "エラー：" + msg });
@@ -417,12 +356,10 @@ function bindClick(elementId, handler) {
 }
 
 /**
- * エラーメッセージをスライド上に図形テキストとして配置する。
- * デバッグ用。エラー内容の把握に使用する。
+ * エラーメッセージをスライド上に図形として配置する（デバッグ用）。
  */
 async function placeErrorTextOnSlide(message) {
   await PowerPoint.run(async (context) => {
-    // 現在のスライドを取得
     let slide;
     try {
       const selected = context.presentation.getSelectedSlides();
@@ -436,22 +373,14 @@ async function placeErrorTextOnSlide(message) {
       slide = allSlides.items[0];
     }
 
-    // 四角形図形にテキストを入れる（addTextBoxより互換性が高い）
     const shape = slide.shapes.addGeometricShape("rectangle");
-    shape.left   = 50;
-    shape.top    = 50;
-    shape.width  = 600;
-    shape.height = 120;
+    Object.assign(shape, { left: 50, top: 50, width: 600, height: 120 });
     shape.fill.setSolidColor("FFEEEE");
-
     await context.sync();
 
-    shape.textFrame.textRange.text       = "DEBUG ERROR:\n" + message;
-    shape.textFrame.textRange.font.size  = 10;
-    shape.textFrame.textRange.font.color = "CC0000";
-    shape.textFrame.textRange.font.bold  = true;
-    shape.textFrame.textRange.font.name  = "Meiryo";
-
+    const font = shape.textFrame.textRange.font;
+    shape.textFrame.textRange.text = "DEBUG ERROR:\n" + message;
+    Object.assign(font, { size: 10, color: "CC0000", bold: true, name: "Meiryo" });
     await context.sync();
   });
 }
@@ -468,15 +397,14 @@ async function sumNumbersByTextColor(targetTextColor, label) {
     const slide = await getCurrentSlide(context);
     if (!slide) return;
 
-    const textShapes = await getTextShapes(context, slide);
     const numbers = [];
-
-    for (const item of textShapes) {
+    for (const item of await getTextShapes(context, slide)) {
       const coloredText = await extractTextByColor(context, item.textRange, item.text, targetTextColor);
       numbers.push(...extractNumbers(coloredText));
     }
 
-    setResult({ text: String(sum(numbers)), color: targetTextColor, copyValue: String(sum(numbers)) });
+    const total = String(sum(numbers));
+    setResult({ text: total, color: targetTextColor, copyValue: total });
   });
 }
 
@@ -485,10 +413,8 @@ async function sumNumbersByTextColor(targetTextColor, label) {
  */
 async function sumNumbersBySelectedTextColor() {
   setResult({ text: "選択中の文字色を取得中..." });
-
   const selected = await getSelectedTextInfo();
   if (!selected.ok) { setResult({ text: selected.message }); return; }
-
   await sumNumbersByTextColor(selected.textColor, `選択中の文字色 ${selected.textColor}`);
 }
 
@@ -497,7 +423,6 @@ async function sumNumbersBySelectedTextColor() {
  */
 async function sumNumbersBySelectedTextColorAndFillColor() {
   setResult({ text: "選択中の文字色と背景色を取得中..." });
-
   const selected = await getSelectedTextAndFillInfo();
   if (!selected.ok) { setResult({ text: selected.message }); return; }
 
@@ -505,17 +430,15 @@ async function sumNumbersBySelectedTextColorAndFillColor() {
     const slide = await getCurrentSlide(context);
     if (!slide) return;
 
-    const textShapes = await getTextShapes(context, slide, { includeFillColor: true });
-    const targetShapes = textShapes.filter((item) => item.fillColor === selected.fillColor);
     const numbers = [];
-
-    for (const item of targetShapes) {
+    const textShapes = await getTextShapes(context, slide, { includeFillColor: true });
+    for (const item of textShapes.filter((s) => s.fillColor === selected.fillColor)) {
       const coloredText = await extractTextByColor(context, item.textRange, item.text, selected.textColor);
       numbers.push(...extractNumbers(coloredText));
     }
 
-    const total = sum(numbers);
-    setResult({ text: String(total), color: selected.textColor, copyValue: String(total) });
+    const total = String(sum(numbers));
+    setResult({ text: total, color: selected.textColor, copyValue: total });
   });
 }
 
@@ -527,12 +450,11 @@ async function formatCodesByTextColor(targetTextColor, allSlides = false) {
 
   await PowerPoint.run(async (context) => {
     let slides;
-
     if (allSlides) {
-      const allSlideCollection = context.presentation.slides;
-      allSlideCollection.load("items");
+      const col = context.presentation.slides;
+      col.load("items");
       await context.sync();
-      slides = allSlideCollection.items;
+      slides = col.items;
     } else {
       const current = await getCurrentSlide(context);
       if (!current) return;
@@ -540,10 +462,8 @@ async function formatCodesByTextColor(targetTextColor, allSlides = false) {
     }
 
     const grouped = {};
-
     for (const slide of slides) {
-      const textShapes = await getTextShapes(context, slide);
-      for (const item of textShapes) {
+      for (const item of await getTextShapes(context, slide)) {
         const coloredText = await extractTextByColor(context, item.textRange, item.text, targetTextColor);
         for (const { letter, number } of extractLetterCodes(coloredText)) {
           (grouped[letter] ??= []).push(number);
@@ -556,8 +476,8 @@ async function formatCodesByTextColor(targetTextColor, allSlides = false) {
     const outputText = outputLines.length > 0 ? outputLines.join("\n") : "該当なし";
 
     setResult({
-      html: `<pre class="outputText" style="color:${targetTextColor}">${escapeHtml(outputText)}</pre>`,
-      color: targetTextColor,
+      html:      `<pre class="outputText" style="color:${targetTextColor}">${escapeHtml(outputText)}</pre>`,
+      color:     targetTextColor,
       copyValue: outputText
     });
   });
@@ -566,34 +486,40 @@ async function formatCodesByTextColor(targetTextColor, allSlides = false) {
 // ─── PowerPoint API ───────────────────────────────────────
 
 /**
+ * テキスト選択情報の共通取得ロジック。
+ * テキスト範囲が有効かどうかを検証して返す。
+ */
+async function loadSelectedTextRange(context) {
+  const selectedTextRange = context.presentation.getSelectedTextRangeOrNullObject();
+  selectedTextRange.load("text");
+  selectedTextRange.font.load("color");
+  await context.sync();
+
+  if (selectedTextRange.isNullObject || !selectedTextRange.text?.trim()) {
+    return { ok: false, message: "テキストが選択されていません。色を取得したい文字を選択してください。" };
+  }
+
+  const textColor = normalizeColor(selectedTextRange.font.color);
+  if (!textColor) {
+    return { ok: false, message: "選択中テキストの文字色を取得できませんでした。1色の文字だけを選択してください。" };
+  }
+
+  return { ok: true, textColor };
+}
+
+/**
  * 現在選択中のテキスト情報を取得する。
  */
 async function getSelectedTextInfo() {
   return PowerPoint.run(async (context) => {
-    const selectedShapes   = context.presentation.getSelectedShapes();
-    const selectedShapeCount = selectedShapes.getCount();
-    const selectedTextRange  = context.presentation.getSelectedTextRangeOrNullObject();
-
+    const count = context.presentation.getSelectedShapes().getCount();
     await context.sync();
 
-    if (selectedShapeCount.value > 1) {
+    if (count.value > 1) {
       return { ok: false, message: "複数選択されています。色を取得したいテキストを1つだけ選択してください。" };
     }
 
-    selectedTextRange.load("text");
-    selectedTextRange.font.load("color");
-    await context.sync();
-
-    if (selectedTextRange.isNullObject || !selectedTextRange.text?.trim()) {
-      return { ok: false, message: "テキストが選択されていません。色を取得したい文字を1つ選択してください。" };
-    }
-
-    const textColor = normalizeColor(selectedTextRange.font.color);
-    if (!textColor) {
-      return { ok: false, message: "選択中テキストの文字色を取得できませんでした。1色の文字だけを選択してください。" };
-    }
-
-    return { ok: true, textColor };
+    return loadSelectedTextRange(context);
   });
 }
 
@@ -602,36 +528,24 @@ async function getSelectedTextInfo() {
  */
 async function getSelectedTextAndFillInfo() {
   return PowerPoint.run(async (context) => {
-    const selectedShapes   = context.presentation.getSelectedShapes();
+    const selectedShapes = context.presentation.getSelectedShapes();
     selectedShapes.load("items");
-    const selectedShapeCount = selectedShapes.getCount();
-    const selectedTextRange  = context.presentation.getSelectedTextRangeOrNullObject();
-
+    const count = selectedShapes.getCount();
     await context.sync();
 
-    if (selectedShapeCount.value !== 1) {
+    if (count.value !== 1) {
       return { ok: false, message: "文字色と背景色を取得したいテキストボックスを1つだけ選択してください。" };
     }
 
-    selectedTextRange.load("text");
-    selectedTextRange.font.load("color");
-    await context.sync();
-
-    if (selectedTextRange.isNullObject || !selectedTextRange.text?.trim()) {
-      return { ok: false, message: "テキストが選択されていません。色を取得したい文字を選択してください。" };
-    }
-
-    const textColor = normalizeColor(selectedTextRange.font.color);
-    if (!textColor) {
-      return { ok: false, message: "選択中テキストの文字色を取得できませんでした。" };
-    }
+    const textResult = await loadSelectedTextRange(context);
+    if (!textResult.ok) return textResult;
 
     const fillColor = await getShapeFillColor(context, selectedShapes.items[0]);
     if (!fillColor) {
       return { ok: false, message: "選択中テキストボックスの背景色を取得できませんでした。単色の塗りつぶし色が設定されたテキストボックスを選択してください。" };
     }
 
-    return { ok: true, textColor, fillColor };
+    return { ok: true, textColor: textResult.textColor, fillColor };
   });
 }
 
@@ -695,19 +609,17 @@ async function getTextShapes(context, slide, options = {}) {
  * 指定色の文字だけを抽出し、それ以外をスペースに置換する。
  */
 async function extractTextByColor(context, textRange, text, targetColor) {
-  const charRanges = [];
-  for (let i = 0; i < text.length; i++) {
+  const charRanges = Array.from({ length: text.length }, (_, i) => {
     const charRange = textRange.getSubstring(i, 1);
     charRange.load("text");
     charRange.font.load("color");
-    charRanges.push(charRange);
-  }
+    return charRange;
+  });
   await context.sync();
 
-  return charRanges.map((charRange) => {
-    const color = normalizeColor(charRange.font.color);
-    return color === targetColor ? (charRange.text || "") : " ";
-  }).join("");
+  return charRanges.map((cr) =>
+    normalizeColor(cr.font.color) === targetColor ? (cr.text || "") : " "
+  ).join("");
 }
 
 async function getShapeFillColor(context, shape) {
@@ -728,7 +640,6 @@ function extractNumbers(text) {
 }
 
 function extractLetterCodes(text) {
-  // キャプチャグループで直接分解し、再マッチを省く
   return [...text.matchAll(/\b([A-Z])-(\d+)\b/g)].map((m) => ({
     letter: m[1],
     number: Number(m[2])
@@ -769,10 +680,8 @@ function normalizeColor(color) {
 
 function escapeHtml(value) {
   return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
 
@@ -780,20 +689,17 @@ function escapeHtml(value) {
 
 /**
  * 結果欄を一括更新する。
- * @param {object} opts
- * @param {string}      [opts.text]      テキスト表示（htmlより優先度低）
- * @param {string}      [opts.html]      HTML表示
+ * @param {object}      opts
+ * @param {string}      [opts.text]      テキスト表示
+ * @param {string}      [opts.html]      HTML表示（text より優先）
  * @param {string|null} [opts.color]     文字色（省略時リセット）
  * @param {string|null} [opts.copyValue] コピーボタンに渡す値（省略時は無効化）
  */
 function setResult({ text, html, color = null, copyValue = null }) {
   const el = document.getElementById(UI.result);
   if (el) {
-    if (html !== undefined) {
-      el.innerHTML = html;
-    } else {
-      el.textContent = text ?? "";
-    }
+    if (html !== undefined) { el.innerHTML = html; }
+    else                    { el.textContent = text ?? ""; }
     el.style.color = color ?? "";
   }
 
@@ -803,7 +709,5 @@ function setResult({ text, html, color = null, copyValue = null }) {
     btn.dataset.copyValue = copyValue ?? "";
   }
 
-  if (copyValue !== null) {
-    navigator.clipboard.writeText(copyValue).catch(() => {});
-  }
+  if (copyValue !== null) navigator.clipboard.writeText(copyValue).catch(() => {});
 }
