@@ -1,7 +1,8 @@
 const COLORS = {
   BLUE:  "#0070c0",
   GREEN: "#00b050",
-  BLACK: "#000000"
+  BLACK: "#000000",
+  RED:   "#ff0000"
 };
 
 const UI = {
@@ -68,6 +69,7 @@ function initializeSummaryButtons() {
   bindClick("formatBlackCodeButton",            () => formatCodesByTextColor(COLORS.BLACK, false));
   bindClick("formatAllSlidesBlackCodeButton",   () => formatCodesByTextColor(COLORS.BLACK, true));
   bindClick("sumAreaByColorButton",             sumAreaBySelectedTextColor);
+  bindClick("collectRedTextButton",             collectRedTextFromSlide);
 
   const copyBtn = document.getElementById(UI.copyButton);
   if (!copyBtn) return;
@@ -783,6 +785,33 @@ async function sumNumbersBySelectedTextColor() {
   const selected = await getSelectedTextInfo();
   if (!selected.ok) { setResult({ text: selected.message }); return; }
   await sumNumbersByTextColor(selected.textColor);
+}
+
+/**
+ * 現在のスライドの赤文字（R255,G0,B0）を全て収集して「, 」つなぎで表示する。
+ */
+async function collectRedTextFromSlide() {
+  setResult({ text: "赤文字を収集中..." });
+
+  await PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return;
+
+    const texts = [];
+    for (const item of await getTextShapes(context, slide)) {
+      const coloredText = await extractTextByColor(
+        context, item.textRange, item.text, COLORS.RED
+      );
+      // 色一致部分（スペース以外）をトークン単位で収集
+      coloredText.split(/\s+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0)
+        .forEach((t) => texts.push(t));
+    }
+
+    const outputText = texts.length > 0 ? texts.join(", ") : "該当なし";
+    setResult({ text: outputText, color: COLORS.RED, copyValue: outputText });
+  });
 }
 
 /**

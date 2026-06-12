@@ -156,6 +156,7 @@
 .action-btn.gray  { --btn-color: #9ca3af; }
 .action-btn.teal  { --btn-color: #0f766e; }
 .action-btn.dark  { --btn-color: #374151; }
+.action-btn.red   { --btn-color: #ff0000; }
 
 /* =============================================
    Divider
