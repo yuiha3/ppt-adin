@@ -13,23 +13,23 @@ const DEFECT_GROUPS = [
   {
     label: "タイル面",
     items: [
-      { content: "割れ",       unit: "枚数" },
-      { content: "浮き",       unit: "枚数" },
-      { content: "陶片浮き",   unit: "枚数" },
-      { content: "下地浮き",   unit: "枚数" },
-      { content: "欠損",       unit: "枚数" },
-      { content: "剝落",       unit: "枚数" },
+      { content: "タイル割れ",     unit: "枚数" },
+      { content: "タイル浮き",     unit: "枚数" },
+      { content: "タイル陶片浮き", unit: "枚数" },
+      { content: "タイル下地浮き", unit: "枚数" },
+      { content: "タイル欠損",     unit: "枚数" },
+      { content: "タイル剝落",     unit: "枚数" },
     ]
   },
   {
     label: "塗装面",
     items: [
-      { content: "ひび割れ 0.3mm未満", unit: "長さ（m）"  },
-      { content: "ひび割れ 0.3mm以上", unit: "長さ（m）"  },
-      { content: "亀甲割れ",           unit: "面積（㎡）" },
-      { content: "塗膜浮き",           unit: "面積（㎡）" },
-      { content: "塗膜剥離",           unit: "面積（㎡）" },
-      { content: "モルタル浮き",       unit: "面積（㎡）" },
+      { content: "塗装面ひび割れ 0.3mm未満", unit: "長さ（m）"  },
+      { content: "塗装面ひび割れ 0.3mm以上", unit: "長さ（m）"  },
+      { content: "塗装面亀甲割れ",           unit: "面積（㎡）" },
+      { content: "塗膜浮き",                 unit: "面積（㎡）" },
+      { content: "塗膜剥離",                 unit: "面積（㎡）" },
+      { content: "塗装面モルタル浮き",       unit: "面積（㎡）" },
     ]
   },
   {
@@ -177,10 +177,25 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
   row.draggable = true;
   if (pinBottom) row.dataset.pinBottom = "true";
 
-  const handle = document.createElement("span");
-  handle.className = "drag-handle";
-  handle.textContent = "⠿";
-  handle.setAttribute("aria-hidden", "true");
+  // ハンドル列：上下2つの色選択丸ボタン
+  const handleCol = document.createElement("div");
+  handleCol.className = "handle-col";
+
+  const dotTop = document.createElement("button");
+  dotTop.type = "button";
+  dotTop.className = "color-dot";
+  dotTop.title = "フォント色を選択";
+  dotTop.dataset.colorType = "font";
+  dotTop.addEventListener("click", () => openColorPicker(dotTop, "font"));
+
+  const dotBottom = document.createElement("button");
+  dotBottom.type = "button";
+  dotBottom.className = "color-dot";
+  dotBottom.title = "背景色を選択";
+  dotBottom.dataset.colorType = "fill";
+  dotBottom.addEventListener("click", () => openColorPicker(dotBottom, "fill"));
+
+  handleCol.append(dotTop, dotBottom);
 
   const quantityEl = noUnit
     ? Object.assign(document.createElement("textarea"), {
@@ -198,7 +213,7 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
   deleteButton.addEventListener("click", () => row.remove());
 
   row.append(
-    handle,
+    handleCol,
     createTableInput({ value: content, className: "contentInput" }),
     quantityEl,
     ...(noUnit ? [] : [createTableInput({ value: unit, className: "unitInput" })]),
@@ -268,6 +283,151 @@ function clearTableRows() {
   document.getElementById("tableRows")?.replaceChildren();
 }
 
+// ─── カラーピッカー ──────────────────────────────────────
+
+/**
+ * スライド上の色を収集してポップアップを表示し、選択色を丸ボタンに反映する。
+ * @param {HTMLElement} dotEl  - クリックされた丸ボタン
+ * @param {"font"|"fill"} colorType - 取得する色の種類
+ */
+async function openColorPicker(dotEl, colorType) {
+  const title = colorType === "font"
+    ? "集計したい文字色を選択"
+    : "集計したい背景色を選択";
+
+  // 既存のポップアップを閉じる
+  closeColorPicker();
+
+  let colors = [];
+  try {
+    colors = await collectSlideColors(colorType);
+  } catch (e) {
+    console.error("色の取得に失敗しました:", e);
+  }
+
+  // ポップアップを生成
+  const popup = document.createElement("div");
+  popup.id = "colorPickerPopup";
+  popup.className = "color-picker-popup";
+
+  const titleEl = document.createElement("p");
+  titleEl.className = "color-picker-title";
+  titleEl.textContent = title;
+  popup.appendChild(titleEl);
+
+  const grid = document.createElement("div");
+  grid.className = "color-picker-grid";
+
+  if (colors.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "color-picker-empty";
+    empty.textContent = "色が見つかりませんでした";
+    popup.appendChild(empty);
+  } else {
+    colors.forEach((color) => {
+      const swatch = document.createElement("button");
+      swatch.type = "button";
+      swatch.className = "color-swatch";
+      swatch.title = color;
+      swatch.style.background = color;
+      swatch.addEventListener("click", () => {
+        dotEl.style.background = color;
+        dotEl.dataset.color = color;
+        closeColorPicker();
+      });
+      grid.appendChild(swatch);
+    });
+    popup.appendChild(grid);
+  }
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "color-picker-close";
+  closeBtn.textContent = "閉じる";
+  closeBtn.addEventListener("click", closeColorPicker);
+  popup.appendChild(closeBtn);
+
+  // ポップアップをdotElの近くに配置
+  document.body.appendChild(popup);
+  const rect = dotEl.getBoundingClientRect();
+  popup.style.top  = (rect.bottom + window.scrollY + 4) + "px";
+  popup.style.left = Math.max(4, rect.left + window.scrollX - popup.offsetWidth / 2) + "px";
+
+  // 外側クリックで閉じる
+  setTimeout(() => {
+    document.addEventListener("click", onOutsideClick);
+  }, 0);
+}
+
+function onOutsideClick(e) {
+  const popup = document.getElementById("colorPickerPopup");
+  if (popup && !popup.contains(e.target)) {
+    closeColorPicker();
+  }
+}
+
+function closeColorPicker() {
+  document.getElementById("colorPickerPopup")?.remove();
+  document.removeEventListener("click", onOutsideClick);
+}
+
+/**
+ * 現在のスライド上のテキストボックスからフォント色または背景色を収集する。
+ */
+async function collectSlideColors(colorType) {
+  return PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return [];
+
+    const shapes = slide.shapes;
+    shapes.load("items");
+    await context.sync();
+
+    const candidates = [];
+    for (const shape of shapes.items) {
+      if (colorType === "fill") {
+        shape.fill.load("foregroundColor");
+        candidates.push({ shape, type: "fill" });
+      } else {
+        try {
+          const tf = shape.getTextFrameOrNullObject();
+          tf.load("hasText");
+          candidates.push({ shape, tf, type: "font" });
+        } catch { /* スキップ */ }
+      }
+    }
+    await context.sync();
+
+    const colorSet = new Set();
+
+    for (const item of candidates) {
+      if (item.type === "fill") {
+        const c = normalizeColor(item.shape.fill.foregroundColor);
+        if (c && c !== "#ffffff" && c !== "#000000") colorSet.add(c);
+      } else {
+        if (item.tf.isNullObject || !item.tf.hasText) continue;
+        // テキストを文字単位で色取得
+        const textRange = item.tf.textRange;
+        textRange.load("text");
+        await context.sync();
+        const text = textRange.text || "";
+        const charRanges = Array.from({ length: Math.min(text.length, 200) }, (_, i) => {
+          const cr = textRange.getSubstring(i, 1);
+          cr.font.load("color");
+          return cr;
+        });
+        await context.sync();
+        charRanges.forEach((cr) => {
+          const c = normalizeColor(cr.font.color);
+          if (c) colorSet.add(c);
+        });
+      }
+    }
+
+    return [...colorSet];
+  });
+}
+
 // ─── 表出力 ──────────────────────────────────────────────
 
 /**
@@ -318,8 +478,7 @@ async function outputTableToSlide() {
       return [d.content, d.quantity, d.unit ?? ""];
     });
 
-    // specificCellProperties：horizontalAlignment は 1.9 からしか効かないため
-    // addTable 時点ではフォント・罫線・背景・余白のみ設定する
+    // specificCellProperties：フォント・罫線・背景・余白を設定する
     const specificCellProperties = Array.from({ length: rowCount }, (_, r) => {
       const isHeader = r === 0;
       const isNoUnit = !isHeader && rows[r - 1].noUnit;
@@ -349,26 +508,6 @@ async function outputTableToSlide() {
       mergedAreas,
       specificCellProperties
     });
-
-    await context.sync();
-
-    // horizontalAlignment と verticalAlignment は PowerPointApi 1.9 から有効。
-    // addTable のオプションでは効かないため、作成後に TableCell に直接設定する。
-    const table = tableShape.getTable();
-    table.load();
-    await context.sync();
-
-    for (let r = 0; r < rowCount; r++) {
-      for (let c = 0; c < 3; c++) {
-        const isNoUnit = r > 0 && rows[r - 1].noUnit;
-        // 結合内の非左上セルはスキップ
-        if (isNoUnit && c === 2) continue;
-
-        const cell = table.getCellOrNullObject(r, c);
-        cell.horizontalAlignment = "Left";
-        cell.verticalAlignment   = "MiddleCentered";
-      }
-    }
 
     await context.sync();
     setResult({ text: "スライドに出力しました" });

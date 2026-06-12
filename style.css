@@ -292,20 +292,101 @@
 }
 
 /* =============================================
-   Drag Handle & DnD
+   Handle Column & Color Dots
    ============================================= */
-.drag-handle {
+.handle-col {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #d1d5db;
-  font-size: 14px;
+  gap: 3px;
   cursor: grab;
-  user-select: none;
-  padding-top: 2px;
 }
 
-.drag-handle:active { cursor: grabbing; }
+.handle-col:active { cursor: grabbing; }
+
+.color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid #d1d5db;
+  background: #ffffff;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: border-color 0.12s, transform 0.1s;
+}
+
+.color-dot:hover {
+  border-color: #0070c0;
+  transform: scale(1.2);
+}
+
+/* =============================================
+   Color Picker Popup
+   ============================================= */
+.color-picker-popup {
+  position: fixed;
+  z-index: 1000;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.14);
+  padding: 12px;
+  min-width: 160px;
+  max-width: 220px;
+}
+
+.color-picker-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.color-picker-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.color-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.12s, transform 0.1s;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+}
+
+.color-swatch:hover {
+  border-color: #374151;
+  transform: scale(1.15);
+}
+
+.color-picker-empty {
+  font-size: 11px;
+  color: #9ca3af;
+  margin: 0 0 10px;
+}
+
+.color-picker-close {
+  width: 100%;
+  padding: 5px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #6b7280;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.color-picker-close:hover { background: #f0f2f5; }
 
 .tableInputRow.dragging {
   opacity: 0.4;
