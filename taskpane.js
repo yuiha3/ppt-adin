@@ -290,34 +290,71 @@ async function outputTableToSlide() {
     const slide = await getCurrentSlide(context);
     if (!slide) return;
 
-    const rowCount  = rows.length + 1;
+    const rowCount  = rows.length + 1;   // ヘッダー + データ行
     const headers   = ["内容", "数量", "単位"];
-    const colWidths = [80, 60, 105]; // pt
-    const rowHeight = 13.5;          // pt
+    const colWidths = [80, 60, 105];     // pt
+    const rowHeight = 13.5;              // pt
 
-    // ── Step1: 追加前の shape 数を記録 ──
-    const shapes = slide.shapes;
-    shapes.load("count");
+    // ── セルプロパティを行列で組み立てる ──────────────────
+    const solidBorder = { color: "000000", dashStyle: "solid", weight: 1 };
+    const noBorder    = { color: "000000", dashStyle: "solid", weight: 0 };
+
+    const specificCellProperties = [];
+
+    for (let r = 0; r < rowCount; r++) {
+      const rowProps = [];
+      const isHeader = r === 0;
+
+      for (let c = 0; c < 3; c++) {
+        const isQty  = c === 1;
+        const text   = isHeader
+          ? headers[c]
+          : (c === 0 ? rows[r-1].content
+           : c === 1 ? rows[r-1].quantity
+           :           rows[r-1].unit);
+
+        rowProps.push({
+          text: text ?? "",
+          fill: { color: "FFFFFF" },
+          font: {
+            name:  "Meiryo",
+            size:  9,
+            bold:  true,
+            color: "000000"
+          },
+          horizontalAlignment: isQty ? "Center" : "Left",
+          verticalAlignment:   "MiddleCentered",
+          margins: {
+            top:    0,
+            bottom: 0,
+            left:   isQty ? 0 : 5,
+            right:  0
+          },
+          borders: isHeader
+            ? { top: noBorder, left: noBorder, right: noBorder, bottom: solidBorder }
+            : { top: solidBorder, left: solidBorder, right: solidBorder, bottom: solidBorder }
+        });
+      }
+      specificCellProperties.push(rowProps);
+    }
+
+    // ── addTable で表を一括作成 ────────────────────────────
+    const tableShape = slide.shapes.addTable(rowCount, 3, {
+      specificCellProperties
+    });
+
     await context.sync();
-    const indexBefore = shapes.count;
 
-    // ── Step2: 表を作成 ──
-    shapes.addTable(rowCount, 3);
-    await context.sync();
-
-    // ── Step3: 追加された shape を index で取得 ──
-    const tableShape = shapes.getItemAt(indexBefore);
-    tableShape.load(["left", "top"]);
-    await context.sync();
-
+    // ── 位置を設定 ────────────────────────────────────────
     tableShape.left = 30;
     tableShape.top  = 120;
 
-    // ── Step4: table プロキシを取得してセルを設定 ──
-    // table は Shape のナビゲーションプロパティ。load 不要で参照可能
-    const table = tableShape.table;
+    // ── 列幅・行高を設定 ──────────────────────────────────
+    // getTable() でロードしてから操作する
+    const table = tableShape.getTable();
+    table.load(["rowCount", "columnCount"]);
+    await context.sync();
 
-    // 列幅・行高
     for (let c = 0; c < 3; c++) {
       table.columns.getItemAt(c).width = colWidths[c];
     }
@@ -325,24 +362,8 @@ async function outputTableToSlide() {
       table.rows.getItemAt(r).height = rowHeight;
     }
 
-    // セルのテキスト・背景色を設定
-    for (let r = 0; r < rowCount; r++) {
-      for (let c = 0; c < 3; c++) {
-        const cell = table.getCell(r, c);
-
-        const text = r === 0
-          ? headers[c]
-          : (c === 0 ? rows[r-1].content
-           : c === 1 ? rows[r-1].quantity
-           :           rows[r-1].unit);
-        cell.text = text ?? "";
-
-        cell.fill.setSolidColor("FFFFFF");
-      }
-    }
-
     await context.sync();
-    setResult({ text: "スライドに出力しました（罫線・フォントはPowerPoint上で調整してください）" });
+    setResult({ text: "スライドに出力しました" });
   });
 }
 
