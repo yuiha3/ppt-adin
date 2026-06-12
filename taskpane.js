@@ -292,13 +292,14 @@ async function outputTableToSlide() {
 
     const rowCount  = rows.length + 1;   // ヘッダー + データ
     const headers   = ["内容", "数量", "単位"];
-    const PT        = 12700;             // 1pt = 12700 EMU
-    const colWidths = [80, 60, 105];     // pt
+    // addTable の座標・サイズは EMU 単位（1pt = 12700 EMU）
+    const PT_EMU    = 12700;
+    const colWidths = [80, 60, 105];     // pt（列幅・行高はpt単位で渡す）
     const rowHeight = 13.5;              // pt
-    const tableLeft = 30  * PT;
-    const tableTop  = 120 * PT;
-    const tableW    = colWidths.reduce((a, b) => a + b, 0) * PT;
-    const tableH    = Math.round(rowHeight * rowCount * PT);
+    const tableLeft = 30  * PT_EMU;
+    const tableTop  = 120 * PT_EMU;
+    const tableW    = colWidths.reduce((a, b) => a + b, 0) * PT_EMU;
+    const tableH    = Math.round(rowHeight * rowCount * PT_EMU);
 
     const tableShape = slide.shapes.addTable(rowCount, 3, {
       left:   tableLeft,
@@ -311,12 +312,12 @@ async function outputTableToSlide() {
 
     const table = tableShape.table;
 
-    // 列幅・行高
+    // 列幅・行高は pt 単位（EMU ではない）
     for (let c = 0; c < 3; c++) {
-      table.columns.getItemAt(c).width = colWidths[c] * PT;
+      table.columns.getItemAt(c).width = colWidths[c];
     }
     for (let r = 0; r < rowCount; r++) {
-      table.rows.getItemAt(r).height = Math.round(rowHeight * PT);
+      table.rows.getItemAt(r).height = rowHeight;
     }
 
     // セル内容・スタイルを設定
@@ -330,24 +331,23 @@ async function outputTableToSlide() {
           : (c === 0 ? rows[r-1].content : c === 1 ? rows[r-1].quantity : rows[r-1].unit);
         cell.text = text ?? "";
 
-        // 背景色
-        cell.fill.setSolidColor("#FFFFFF");
+        // 背景色（# なしの6桁HEX）
+        cell.fill.setSolidColor("FFFFFF");
 
-        // テキストフレーム
+        // テキストフレーム（余白は pt 単位）
         const tf = cell.textFrame;
         tf.topMargin    = 0;
         tf.bottomMargin = 0;
-        tf.leftMargin   = (c === 1 ? 0 : 5) * PT;
+        tf.leftMargin   = c === 1 ? 0 : 5;
         tf.rightMargin  = 0;
-        tf.verticalAlignment = "MiddleCentered";
-        tf.autoSizeSetting   = "AutoSizeNone";
+        tf.verticalAlignment = "Middle";  // 正しい列挙値
 
         // フォント・段落
         const textRange = tf.textRange;
         textRange.font.name  = "Meiryo";
         textRange.font.size  = 9;
         textRange.font.bold  = true;
-        textRange.font.color = "#000000";
+        textRange.font.color = "000000";  // # なし6桁HEX
         textRange.paragraphFormat.horizontalAlignment =
           c === 1 ? "Center" : "Left";
       }
@@ -466,9 +466,46 @@ function bindClick(elementId, handler) {
       await handler();
     } catch (error) {
       console.error(error);
-      setResult({ text: "エラー：" + (error?.message ?? String(error)) });
+      const msg = error?.message ?? String(error);
+      setResult({ text: "エラー：" + msg });
+      await placeErrorTextOnSlide(msg);
     }
   });
+}
+
+/**
+ * エラーメッセージをスライド上にテキストボックスとして配置する。
+ * デバッグ用。エラー内容の把握に使用する。
+ */
+async function placeErrorTextOnSlide(message) {
+  try {
+    await PowerPoint.run(async (context) => {
+      const slides = context.presentation.getSelectedSlides();
+      slides.load("items");
+      await context.sync();
+
+      const slide = slides.items[0] ?? context.presentation.slides.getItemAt(0);
+      const PT = 12700;
+
+      const box = slide.shapes.addTextBox(
+        "ERROR: " + message,
+        {
+          left:   10 * PT,
+          top:    10 * PT,
+          width:  400 * PT,
+          height: 60  * PT
+        }
+      );
+
+      box.textFrame.textRange.font.size  = 9;
+      box.textFrame.textRange.font.color = "FF0000";
+      box.textFrame.textRange.font.bold  = true;
+
+      await context.sync();
+    });
+  } catch {
+    // エラー表示自体が失敗しても無視
+  }
 }
 
 // ─── 集計処理 ─────────────────────────────────────────────
