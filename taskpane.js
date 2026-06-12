@@ -326,6 +326,7 @@ function openAutoSumPopup() {
 
     const rowEl = document.createElement("div");
     rowEl.className = "autosum-row";
+    rowEl.dataset.rowIndex = String(i);  // 元DOM行との対応付け
 
     // noUnit行は丸を非表示
     const showDots = !rowData.noUnit;
@@ -389,8 +390,10 @@ function openAutoSumPopup() {
   runBtn.className = "autosum-run-btn";
   runBtn.textContent = "集計実行";
   runBtn.addEventListener("click", async () => {
+    // ポップアップ内で削除された行を除外するため、現在表示中の行を取得
+    const activePopupRows = [...body.querySelectorAll(".autosum-row")];
     closeAutoSumPopup();
-    await runAutoSum(rows, tableRowEls);
+    await runAutoSum(activePopupRows, tableRowEls);
   });
 
   const closeBtn = document.createElement("button");
@@ -411,28 +414,41 @@ function closeAutoSumPopup() {
 }
 
 /**
- * 自動集計実行：各行の丸の色を使って集計し、数量欄に結果を入力する。
+ * 自動集計実行。
+ * @param {Element[]} activePopupRows - ポップアップ内で現在表示中の行要素
+ * @param {Element[]} tableRowEls     - 元のDOM行要素（数量入力欄の書き込み先）
+ *
+ * 処理：
+ *   - ポップアップ行の上丸(font)の色でスライド上の数字を集計
+ *   - 下丸(fill)にも色がある場合は「フォント色かつ背景色」の条件で集計
+ *   - フォント色が未設定の行はスキップ
+ *   - 元のDOM行の数量入力欄に結果を書き込む
  */
-async function runAutoSum(rows, tableRowEls) {
+async function runAutoSum(activePopupRows, tableRowEls) {
   setResult({ text: "自動集計中..." });
 
-  for (let i = 0; i < rows.length; i++) {
-    const domRow   = tableRowEls[i];
-    const dotTop   = domRow?.querySelector(".color-dot[data-color-type='font']");
-    const dotBot   = domRow?.querySelector(".color-dot[data-color-type='fill']");
-    const fontColor = dotTop?.dataset.color;
-    const fillColor = dotBot?.dataset.color;
-    const quantityInput = domRow?.querySelector(".quantityInput");
+  for (const popupRow of activePopupRows) {
+    // ポップアップ行のインデックスを取得し、対応する元DOM行を特定
+    const rowIndex = popupRow.dataset.rowIndex !== undefined
+      ? Number(popupRow.dataset.rowIndex)
+      : null;
+    if (rowIndex === null) continue;
 
-    if (!fontColor || !quantityInput) continue;
+    const domRow        = tableRowEls[rowIndex];
+    const quantityInput = domRow?.querySelector(".quantityInput");
+    if (!quantityInput) continue;
+
+    // ポップアップ内の丸から現在の色を取得
+    const fontDot   = popupRow.querySelector(".color-dot[data-color-type='font']");
+    const fillDot   = popupRow.querySelector(".color-dot[data-color-type='fill']");
+    const fontColor = fontDot?.dataset.color ?? null;
+    const fillColor = fillDot?.dataset.color ?? null;
+
+    // フォント色が未設定の行はスキップ
+    if (!fontColor) continue;
 
     try {
-      let result;
-      if (fillColor) {
-        result = await sumNumbersByColorDirect(fontColor, fillColor);
-      } else {
-        result = await sumNumbersByColorDirect(fontColor, null);
-      }
+      const result = await sumNumbersByColorDirect(fontColor, fillColor);
       quantityInput.value = result !== null ? String(result) : "";
     } catch (e) {
       console.error("集計エラー:", e);
