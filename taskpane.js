@@ -299,6 +299,8 @@ async function outputTableToSlide() {
     // addTable は (rowCount, columnCount) の2引数のみ
     const tableShape = slide.shapes.addTable(rowCount, 3);
 
+    // table プロパティを明示的にロードしてから参照する
+    tableShape.load("table");
     await context.sync();
 
     // 位置・サイズはプロパティで設定（pt単位）
