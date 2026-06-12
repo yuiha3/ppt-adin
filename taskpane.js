@@ -269,7 +269,65 @@ function createTableInput({ value = "", className = "", placeholder = "", inputm
 }
 
 function clearTableRows() {
-  document.getElementById("tableRows")?.replaceChildren();
+  // 行がなければそのまま終了
+  const container = document.getElementById("tableRows");
+  if (!container || container.children.length === 0) return;
+
+  showConfirmDialog(
+    "行をすべて削除しますか？",
+    "追加された行がすべて削除されます。この操作は元に戻せません。",
+    () => container.replaceChildren()
+  );
+}
+
+/**
+ * 確認ダイアログを表示する。
+ * @param {string}   title    - タイトル
+ * @param {string}   message  - 説明文
+ * @param {Function} onConfirm - 確認ボタン押下時のコールバック
+ */
+function showConfirmDialog(title, message, onConfirm) {
+  // 既存のダイアログを閉じる
+  document.getElementById("confirmDialog")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "confirmDialog";
+  overlay.className = "confirm-overlay";
+
+  const dialog = document.createElement("div");
+  dialog.className = "confirm-dialog";
+
+  const titleEl = document.createElement("p");
+  titleEl.className = "confirm-dialog__title";
+  titleEl.textContent = title;
+
+  const messageEl = document.createElement("p");
+  messageEl.className = "confirm-dialog__message";
+  messageEl.textContent = message;
+
+  const btnRow = document.createElement("div");
+  btnRow.className = "confirm-dialog__buttons";
+
+  const cancelBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "confirm-cancel-btn", textContent: "キャンセル"
+  });
+  cancelBtn.addEventListener("click", () => overlay.remove());
+
+  const confirmBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "confirm-ok-btn", textContent: "削除する"
+  });
+  confirmBtn.addEventListener("click", () => {
+    overlay.remove();
+    onConfirm();
+  });
+
+  btnRow.append(cancelBtn, confirmBtn);
+  dialog.append(titleEl, messageEl, btnRow);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+
+  // 外側クリックで閉じる
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
 }
 
 // ─── 自動集計ポップアップ ─────────────────────────────────
@@ -552,7 +610,7 @@ async function outputTableToSlide(includeQuantity = false) {
     if (!slide) return;
 
     const rowCount  = rows.length + 1;
-    const headers   = ["内容", "数量", "単位"];
+    const headers   = [includeQuantity ? "＜集計＞" : "＜凡例＞", "", ""];
     const colWidths = [80, 60, 105];
     const rowHeight = 13.5;
 

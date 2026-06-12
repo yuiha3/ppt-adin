@@ -764,3 +764,72 @@ body {
 
 .copy-btn:hover:not(:disabled) { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
 .copy-btn:disabled              { opacity: 0.35; cursor: default; }
+
+/* =============================================
+   確認ダイアログ
+   ============================================= */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirm-dialog {
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  width: 240px;
+  padding: 18px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.confirm-dialog__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a1d23;
+  margin: 0;
+}
+
+.confirm-dialog__message {
+  font-size: 11px;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.confirm-dialog__buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.confirm-cancel-btn,
+.confirm-ok-btn {
+  padding: 7px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #e5e7eb;
+  transition: background 0.12s, color 0.12s;
+}
+
+.confirm-cancel-btn {
+  background: #ffffff;
+  color: #6b7280;
+}
+.confirm-cancel-btn:hover { background: #f0f2f5; }
+
+.confirm-ok-btn {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+}
+.confirm-ok-btn:hover { background: #dc2626; }
