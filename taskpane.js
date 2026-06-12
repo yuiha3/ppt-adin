@@ -274,64 +274,52 @@ async function outputTableToSlide() {
 
     const solidBorder = { color: "000000", dashStyle: "solid", weight: 1 };
     const noBorder    = { color: "000000", dashStyle: "solid", weight: 0 };
+    const baseCell    = {
+      fill:                { color: "FFFFFF" },
+      font:                { name: "Meiryo", size: 9, bold: true, color: "000000" },
+      horizontalAlignment: "Left",
+      verticalAlignment:   "MiddleCentered",
+      margins:             { top: 0, bottom: 0, left: 5, right: 0 }
+    };
 
-    // セルプロパティを行列で組み立てる
+    // mergedAreas：noUnit行の数量列(c=1)〜単位列(c=2) を結合
+    const mergedAreas = [];
+    rows.forEach((row, i) => {
+      if (row.noUnit) {
+        mergedAreas.push({ rowIndex: i + 1, columnIndex: 1, rowCount: 1, columnCount: 2 });
+      }
+    });
+
+    // specificCellProperties を行列で組み立てる
     const specificCellProperties = Array.from({ length: rowCount }, (_, r) => {
       const isHeader = r === 0;
       const rowData  = isHeader ? null : rows[r - 1];
       const isNoUnit = !isHeader && rowData.noUnit;
 
       return Array.from({ length: 3 }, (_, c) => {
-        const isQty      = c === 1;
-        const isUnitCell = c === 2;
-
-        // noUnit行の単位セル（c=2）：結合のダミーセルなので空＋ボーダーなし
-        if (isNoUnit && isUnitCell) {
-          return {
-            text: "",
-            fill: { color: "FFFFFF" },
-            font: { name: "Meiryo", size: 9, bold: true, color: "000000" },
-            horizontalAlignment: "Left",
-            verticalAlignment:   "MiddleCentered",
-            margins: { top: 0, bottom: 0, left: 0, right: 0 },
-            borders: { top: solidBorder, left: noBorder, right: solidBorder, bottom: solidBorder }
-          };
-        }
+        // 結合エリア内の非左上セル（noUnit行のc=2）は空オブジェクトを渡す
+        if (isNoUnit && c === 2) return {};
 
         const text = isHeader
           ? headers[c]
           : [rowData.content, rowData.quantity, rowData.unit][c];
 
-        // noUnit行の数量セル（c=1）：columnSpan:2 で単位列まで結合、左揃え
-        const colSpan = (isNoUnit && isQty) ? 2 : undefined;
+        const borders = isHeader
+          ? { top: noBorder, left: noBorder, right: noBorder, bottom: solidBorder }
+          : { top: solidBorder, left: solidBorder, right: solidBorder, bottom: solidBorder };
 
-        return {
-          text: text ?? "",
-          fill: { color: "FFFFFF" },
-          font: { name: "Meiryo", size: 9, bold: true, color: "000000" },
-          horizontalAlignment: "Left",
-          verticalAlignment:   "MiddleCentered",
-          margins: { top: 0, bottom: 0, left: 5, right: 0 },
-          borders: isHeader
-            ? { top: noBorder, left: noBorder, right: noBorder, bottom: solidBorder }
-            : { top: solidBorder, left: solidBorder, right: solidBorder, bottom: solidBorder },
-          ...(colSpan !== undefined && { columnSpan: colSpan })
-        };
+        return { ...baseCell, text: text ?? "", borders };
       });
     });
 
-    const tableShape = slide.shapes.addTable(rowCount, 3, { specificCellProperties });
-    await context.sync();
-
-    tableShape.left = 30;
-    tableShape.top  = 120;
-
-    const table = tableShape.getTable();
-    table.load();
-    await context.sync();
-
-    colWidths.forEach((w, c) => { table.columns.getItemAt(c).width = w; });
-    Array.from({ length: rowCount }, (_, r) => { table.rows.getItemAt(r).height = rowHeight; });
+    const tableShape = slide.shapes.addTable(rowCount, 3, {
+      left:   30,
+      top:    120,
+      columns: colWidths.map((w) => ({ columnWidth: w })),
+      rows:    Array.from({ length: rowCount }, () => ({ rowHeight })),
+      mergedAreas,
+      specificCellProperties
+    });
 
     await context.sync();
     setResult({ text: "スライドに出力しました" });
