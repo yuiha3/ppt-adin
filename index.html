@@ -91,10 +91,9 @@
       <p class="section-label">項目を追加</p>
       <div id="defectButtonGrid" class="defectButtonGrid"></div>
 
-      <div class="divider"></div>
-
-      <!-- 追加された行 -->
-      <p class="section-label">行一覧</p>
+      <div class="section-divider">
+        <span class="section-divider__label">行一覧</span>
+      </div>
       <div class="tableHeader" aria-hidden="true">
         <div></div>
         <div>内容</div>
@@ -107,16 +106,10 @@
 
       <!-- アクション -->
       <div class="tableActionArea">
-        <div class="action-list" style="margin-bottom:0">
-          <button id="autoSumButton" type="button" class="action-btn teal">
-            <span class="btn-dot"></span>
-            <span class="btn-label">
-              自動集計
-              <span class="btn-sub">丸の色で数量を自動入力</span>
-            </span>
-          </button>
-        </div>
         <div class="table-output-row">
+          <button id="autoSumButton" type="button" class="output-btn output-btn--sub">
+            自動集計
+          </button>
           <button id="outputTableButton" type="button" class="output-btn">
             凡例表出力
           </button>

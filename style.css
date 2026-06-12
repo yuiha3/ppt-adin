@@ -166,6 +166,31 @@
   margin: 10px 0;
 }
 
+/* 行追加エリアと行一覧エリアの区切り */
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+.section-divider::before,
+.section-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.section-divider__label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 /* =============================================
    Defect Buttons（表作成タブ）
    ============================================= */
@@ -275,6 +300,7 @@
   text-transform: uppercase;
   border-bottom: 1px solid #e5e7eb;
   margin-bottom: 3px;
+  text-align: center;
 }
 
 .tableRows {
@@ -455,12 +481,18 @@
   gap: 5px;
 }
 
-/* 凡例表出力・集計表出力の2列ボタン */
+/* 自動集計・凡例表出力・集計表出力の3列ボタン */
 .table-output-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 4px;
 }
+
+.output-btn--sub {
+  background: #6b7280;
+}
+.output-btn--sub:hover  { background: #4b5563; }
+.output-btn--sub:active { background: #374151; }
 
 .output-btn {
   width: 100%;
