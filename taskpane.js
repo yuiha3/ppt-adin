@@ -278,22 +278,44 @@ async function outputTableToSlide() {
     // セルプロパティを行列で組み立てる
     const specificCellProperties = Array.from({ length: rowCount }, (_, r) => {
       const isHeader = r === 0;
+      const rowData  = isHeader ? null : rows[r - 1];
+      const isNoUnit = !isHeader && rowData.noUnit;
+
       return Array.from({ length: 3 }, (_, c) => {
-        const isQty = c === 1;
-        const text  = isHeader
+        const isQty      = c === 1;
+        const isUnitCell = c === 2;
+
+        // noUnit行の単位セル（c=2）：結合のダミーセルなので空＋ボーダーなし
+        if (isNoUnit && isUnitCell) {
+          return {
+            text: "",
+            fill: { color: "FFFFFF" },
+            font: { name: "Meiryo", size: 9, bold: true, color: "000000" },
+            horizontalAlignment: "Left",
+            verticalAlignment:   "MiddleCentered",
+            margins: { top: 0, bottom: 0, left: 0, right: 0 },
+            borders: { top: solidBorder, left: noBorder, right: solidBorder, bottom: solidBorder }
+          };
+        }
+
+        const text = isHeader
           ? headers[c]
-          : [rows[r-1].content, rows[r-1].quantity, rows[r-1].unit][c];
+          : [rowData.content, rowData.quantity, rowData.unit][c];
+
+        // noUnit行の数量セル（c=1）：columnSpan:2 で単位列まで結合、左揃え
+        const colSpan = (isNoUnit && isQty) ? 2 : undefined;
 
         return {
           text: text ?? "",
           fill: { color: "FFFFFF" },
           font: { name: "Meiryo", size: 9, bold: true, color: "000000" },
-          horizontalAlignment: isQty ? "Center" : "Left",
+          horizontalAlignment: "Left",
           verticalAlignment:   "MiddleCentered",
-          margins: { top: 0, bottom: 0, left: isQty ? 0 : 5, right: 0 },
+          margins: { top: 0, bottom: 0, left: 5, right: 0 },
           borders: isHeader
             ? { top: noBorder, left: noBorder, right: noBorder, bottom: solidBorder }
-            : { top: solidBorder, left: solidBorder, right: solidBorder, bottom: solidBorder }
+            : { top: solidBorder, left: solidBorder, right: solidBorder, bottom: solidBorder },
+          ...(colSpan !== undefined && { columnSpan: colSpan })
         };
       });
     });
@@ -325,10 +347,11 @@ function collectTableRows() {
 
   return [...container.querySelectorAll(".tableInputRow")].map((row) => {
     const inputs   = row.querySelectorAll("input.tableInput, textarea.tableInput");
+    const noUnit   = row.classList.contains("noUnitRow");
     const content  = inputs[0]?.value ?? "";
     const quantity = inputs[1]?.value ?? "";
-    const unit     = row.classList.contains("noUnitRow") ? "" : (inputs[2]?.value ?? "");
-    return { content, quantity, unit };
+    const unit     = noUnit ? "" : (inputs[2]?.value ?? "");
+    return { content, quantity, unit, noUnit };
   }).filter((r) => r.content || r.quantity);
 }
 
