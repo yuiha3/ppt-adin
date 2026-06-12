@@ -290,76 +290,30 @@ async function outputTableToSlide() {
     const slide = await getCurrentSlide(context);
     if (!slide) return;
 
-    const rowCount  = rows.length + 1;   // ヘッダー + データ
+    const rowCount  = rows.length + 1;
     const headers   = ["内容", "数量", "単位"];
-    const PT        = 12700;         // 1pt = 12700 EMU（OOXML用）
     const colWidths = [80, 60, 105]; // pt
     const rowHeight = 13.5;          // pt
 
-    // addTable は (rowCount, columnCount) の2引数のみ
-    const tableShape = slide.shapes.addTable(rowCount, 3);
-
-    // table プロパティを明示的にロードしてから参照する
-    tableShape.load("table");
+    // Step1: addTable で表を作成
+    slide.shapes.addTable(rowCount, 3);
+    slide.shapes.load("items");
     await context.sync();
 
-    // 位置・サイズはプロパティで設定（pt単位）
+    // addTable で追加した表は shapes の末尾に入る
+    const tableShape = slide.shapes.items[slide.shapes.items.length - 1];
+
+    // Step2: 位置を設定
     tableShape.left = 30;
     tableShape.top  = 120;
 
-    const table = tableShape.table;
-
-    // 列幅・行高（pt単位）
-    for (let c = 0; c < 3; c++) {
-      table.columns.getItemAt(c).width = colWidths[c];
-    }
-    for (let r = 0; r < rowCount; r++) {
-      table.rows.getItemAt(r).height = rowHeight;
-    }
-
-    // セル内容・スタイルを設定
-    for (let r = 0; r < rowCount; r++) {
-      for (let c = 0; c < 3; c++) {
-        const cell = table.getCell(r, c);
-
-        // テキスト
-        const text = r === 0
-          ? headers[c]
-          : (c === 0 ? rows[r-1].content : c === 1 ? rows[r-1].quantity : rows[r-1].unit);
-        cell.text = text ?? "";
-
-        // 背景色（# なしの6桁HEX）
-        cell.fill.setSolidColor("FFFFFF");
-
-        // テキストフレーム（余白は pt 単位）
-        const tf = cell.textFrame;
-        tf.topMargin    = 0;
-        tf.bottomMargin = 0;
-        tf.leftMargin   = c === 1 ? 0 : 5;
-        tf.rightMargin  = 0;
-        tf.verticalAlignment = "Middle";  // 正しい列挙値
-
-        // フォント・段落
-        const textRange = tf.textRange;
-        textRange.font.name  = "Meiryo";
-        textRange.font.size  = 9;
-        textRange.font.bold  = true;
-        textRange.font.color = "000000";  // # なし6桁HEX
-        textRange.paragraphFormat.horizontalAlignment =
-          c === 1 ? "Center" : "Left";
-      }
-    }
-
+    // Step3: 表のOOXMLを取得してスタイル適用後に上書き
+    const ooxmlProxy = tableShape.getOoxml();
     await context.sync();
 
-    // 罫線はOOXMLで設定（Office.js に罫線直接設定APIがない）
-    tableShape.load("id");
-    await context.sync();
-
-    const ooxmlResult = tableShape.getOoxml();
-    await context.sync();
-
-    const styledXml = applyTableBorderStyles(ooxmlResult.value, rowCount);
+    const styledXml = buildStyledTableOoxml(
+      ooxmlProxy.value, rows, headers, colWidths, rowHeight
+    );
     tableShape.setOoxml(styledXml);
     await context.sync();
 
@@ -367,68 +321,63 @@ async function outputTableToSlide() {
   });
 }
 
+
 /**
- * OOXMLに罫線・フォントスタイルを適用する。
- *  - ヘッダー行(1行目)：下罫線のみ
- *  - データ行：全罫線 黒 1pt
- *  - フォント：メイリオ 9pt 太字
+ * 取得したOOXMLのテーブル部分をVBA仕様に沿って書き換える。
+ * - テキスト・罫線・フォント・余白・背景色・行高・列幅をすべてXMLで設定
  */
-function applyTableBorderStyles(xml, rowCount) {
-  const W = 12700; // 1pt in EMU
+function buildStyledTableOoxml(baseXml, rows, headers, colWidths, rowHeight) {
+  const PT  = 12700; // 1pt = 12700 EMU
+  const W   = 12700; // 罫線 1pt
+  const B   = `<a:ln w="${W}"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln>`;
+  const N   = `<a:ln w="0"><a:noFill/></a:ln>`;
 
-  const solidBorder = (w, color) =>
-    `<a:ln w="${w}"><a:solidFill><a:srgbClr val="${color}"/></a:solidFill></a:ln>`;
-  const noBorder = `<a:ln w="0"><a:noFill/></a:ln>`;
-  const B = solidBorder(W, "000000");
-  const N = noBorder;
+  const rowCount = rows.length + 1;
 
-  // <a:tr> を行単位で処理
-  let rowIndex = 0;
-  xml = xml.replace(/<a:tr[ >]/g, (match) => {
-    rowIndex++;
-    return match; // カウントだけ
-  });
+  // 列幅グリッド
+  const gridCols = colWidths.map(w => `<a:gridCol w="${w * PT}"/>`).join("");
 
-  rowIndex = 0;
-  xml = xml.replace(/(<a:tr[^>]*>)([\s\S]*?)(<\/a:tr>)/g, (match, open, inner, close) => {
-    const isHeader = rowIndex === 0;
-    rowIndex++;
+  // セルXMLを生成
+  const makeCell = (text, rowIdx, colIdx) => {
+    const isHeader = rowIdx === 0;
+    const isQty    = colIdx === 1;
+    const leftMarg = isQty ? 0 : 5 * PT;
+    const algn     = isQty ? "ctr" : "l";
+    const lnL = isHeader ? N : B;
+    const lnR = isHeader ? N : B;
+    const lnT = isHeader ? N : B;
+    const lnB = B; // 全行下罫線あり
+    const safeText = String(text ?? "")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-    // tcPr 内の罫線を書き換え
-    inner = inner.replace(/(<a:tcPr[^>]*>)([\s\S]*?)(<\/a:tcPr>)/g, (m, tcOpen, tcInner, tcClose) => {
-      // 既存の lnL/lnR/lnT/lnB を削除して再設定
-      tcInner = tcInner
-        .replace(/<a:lnL>[\s\S]*?<\/a:lnL>/g, "")
-        .replace(/<a:lnR>[\s\S]*?<\/a:lnR>/g, "")
-        .replace(/<a:lnT>[\s\S]*?<\/a:lnT>/g, "")
-        .replace(/<a:lnB>[\s\S]*?<\/a:lnB>/g, "");
+    return `<a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:pPr algn="${algn}"/><a:r><a:rPr lang="ja-JP" altLang="en-US" sz="900" b="1" dirty="0"><a:solidFill><a:srgbClr val="000000"/></a:solidFill><a:latin typeface="Meiryo"/><a:ea typeface="Meiryo"/></a:rPr><a:t>${safeText}</a:t></a:r></a:p></a:txBody><a:tcPr marL="${leftMarg}" marR="0" marT="0" marB="0" anchor="ctr"><a:lnL>${lnL}</a:lnL><a:lnR>${lnR}</a:lnR><a:lnT>${lnT}</a:lnT><a:lnB>${lnB}</a:lnB><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:tcPr></a:tc>`;
+  };
 
-      const borders = isHeader
-        ? `<a:lnL>${N}</a:lnL><a:lnR>${N}</a:lnR><a:lnT>${N}</a:lnT><a:lnB>${B}</a:lnB>`
-        : `<a:lnL>${B}</a:lnL><a:lnR>${B}</a:lnR><a:lnT>${B}</a:lnT><a:lnB>${B}</a:lnB>`;
-
-      return `${tcOpen}${borders}${tcInner}${tcClose}`;
+  // 全行のXMLを生成
+  const rowsXml = [];
+  for (let r = 0; r < rowCount; r++) {
+    const cells = [0, 1, 2].map(c => {
+      const text = r === 0
+        ? headers[c]
+        : (c === 0 ? rows[r-1].content : c === 1 ? rows[r-1].quantity : rows[r-1].unit);
+      return makeCell(text, r, c);
     });
+    rowsXml.push(
+      `<a:tr h="${Math.round(rowHeight * PT)}">${cells.join("")}</a:tr>`
+    );
+  }
 
-    // フォント設定：<a:rPr> にメイリオ・9pt・太字を追記
-    inner = inner.replace(/(<a:rPr[^>]*?>)/g, (m, rpr) => {
-      // sz・b を上書き
-      let r2 = rpr.replace(/\s*sz="[^"]*"/, "").replace(/\s*b="[^"]*"/, "");
-      r2 = r2.replace("<a:rPr", `<a:rPr sz="900" b="1"`);
-      return r2;
-    });
-    // ラテン/東アジアフォント指定を削除して再挿入
-    inner = inner
-      .replace(/<a:latin[^/]*\/>/g, "")
-      .replace(/<a:ea[^/]*\/>/g, "");
-    inner = inner.replace(/(<a:rPr[^>]*>)/g,
-      `$1<a:latin typeface="Meiryo"/><a:ea typeface="Meiryo"/>`);
+  // baseXml の <p:graphicFrame> から xfrm（位置情報）だけ流用し tbl を丸ごと置換
+  const tblXml = `<a:tbl><a:tblPr firstRow="0" bandRow="0"><a:tableStyleId>{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}</a:tableStyleId></a:tblPr><a:tblGrid>${gridCols}</a:tblGrid>${rowsXml.join("")}</a:tbl>`;
 
-    return `${open}${inner}${close}`;
-  });
+  // baseXml 内の既存 <a:tbl>...</a:tbl> を置換
+  const result = baseXml.replace(/<a:tbl>[\s\S]*?<\/a:tbl>/, tblXml);
 
-  return xml;
+  // 置換できなかった場合（まれに tbl がない）はそのまま返す
+  return result.includes("<a:tbl>") ? result : baseXml;
 }
+
 
 /**
  * tableRows DOM から行データを収集する。
