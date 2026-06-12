@@ -136,16 +136,31 @@ async function loadPdf(file) {
       showPdfStatus(`変換中: ${i} / ${numPages} ページ`, "info");
 
       const page = await pdf.getPage(i);
-      // scale: 8.0 = 576dpi相当
-      const viewport = page.getViewport({ scale: 8.0 });
+      // scale: 8.0 = 576dpi相当（A3サイズ対応）
+      const TARGET_SCALE = 8.0;
+      const viewport = page.getViewport({ scale: TARGET_SCALE });
+
+      // Canvasの物理ピクセルサイズ（整数に丸める）
+      const canvasWidth  = Math.floor(viewport.width);
+      const canvasHeight = Math.floor(viewport.height);
 
       const canvas = document.createElement("canvas");
-      canvas.width  = viewport.width;
-      canvas.height = viewport.height;
+      canvas.width  = canvasWidth;
+      canvas.height = canvasHeight;
+
+      const ctx = canvas.getContext("2d");
+      // transformで物理Canvasサイズとviewportのずれを補正し、
+      // pdf.jsの内部スケール縮小によるクリッピングを防ぐ
+      const scaleX = canvasWidth  / viewport.width;
+      const scaleY = canvasHeight / viewport.height;
+      const transform = (scaleX !== 1 || scaleY !== 1)
+        ? [scaleX, 0, 0, scaleY, 0, 0]
+        : null;
 
       await page.render({
-        canvasContext: canvas.getContext("2d"),
-        viewport
+        canvasContext: ctx,
+        viewport,
+        ...(transform ? { transform } : {})
       }).promise;
 
       const base64 = canvas.toDataURL("image/png").split(",")[1];
@@ -195,11 +210,20 @@ async function insertPdfToSlides() {
       slides.load("items");
       await context.sync();
 
-      // スライドのサイズを取得
-      presentation.load("width,height");
-      await context.sync();
-      const slideW = presentation.width;   // pt
-      const slideH = presentation.height;  // pt
+      // スライドサイズを pageSetup（API 1.10）で取得、失敗時はA3縦を固定値として使用
+      let slideW = 841.9;   // A3縦 pt（デフォルト）
+      let slideH = 1190.4;
+      try {
+        const pageSetup = presentation.pageSetup;
+        pageSetup.load("slideWidth,slideHeight");
+        await context.sync();
+        if (pageSetup.slideWidth && pageSetup.slideHeight) {
+          slideW = pageSetup.slideWidth;
+          slideH = pageSetup.slideHeight;
+        }
+      } catch {
+        // API 1.10未満の環境ではA3固定値を使用
+      }
 
       for (let i = 0; i < pdfPageImages.length; i++) {
         showPdfStatus(`挿入中: ${i + 1} / ${pdfPageImages.length} ページ`, "info");
@@ -216,12 +240,24 @@ async function insertPdfToSlides() {
         newSlide.load("shapes");
         await context.sync();
 
-        // スライド全体を覆う矩形を追加して画像で塗りつぶす
+        // PDFページのアスペクト比を保ちつつスライド全体を埋める（cover）
+        const imgW = pdfPageImages[i].width;
+        const imgH = pdfPageImages[i].height;
+        const scaleW = slideW / imgW;
+        const scaleH = slideH / imgH;
+        // アスペクト比を保ったままスライドを完全に覆うためcoverスケールを使用
+        const coverScale = Math.max(scaleW, scaleH);
+        const fitW  = imgW * coverScale;
+        const fitH  = imgH * coverScale;
+        // スライド中央に配置（はみ出た分は外側にはみ出る）
+        const left = (slideW - fitW) / 2;
+        const top  = (slideH - fitH) / 2;
+
         const shape = newSlide.shapes.addGeometricShape("rectangle", {
-          left:   0,
-          top:    0,
-          width:  slideW,
-          height: slideH
+          left,
+          top,
+          width:  fitW,
+          height: fitH
         });
         await context.sync();
 
