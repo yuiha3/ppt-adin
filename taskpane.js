@@ -47,7 +47,7 @@ const DEFECT_GROUPS = [
   {
     label: "写真番号",
     items: [
-      { content: "写真番号", unit: "", noUnit: true },
+      { content: "写真番号", unit: "", noUnit: true, pinBottom: true },
     ]
   },
 ];
@@ -142,14 +142,14 @@ function shrinkOverflowButtons(container) {
   });
 }
 
-function addTableRow({ content, unit, noUnit = false }) {
+function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
   const tableRows = document.getElementById("tableRows");
   if (!tableRows) return;
 
   const row = document.createElement("div");
   row.className = noUnit ? "tableInputRow noUnitRow" : "tableInputRow";
   row.draggable = true;
-  if (noUnit) row.dataset.pinBottom = "true";
+  if (pinBottom) row.dataset.pinBottom = "true";
 
   // ドラッグハンドル
   const handle = document.createElement("span");
@@ -191,12 +191,12 @@ function addTableRow({ content, unit, noUnit = false }) {
     );
   }
 
-  // noUnit行（写真番号等）は常に最下部、それ以外は最初のnoUnit行の直前に挿入
+  // pinBottom行（写真番号）は常に最下部、それ以外は最初のpinBottom行の直前に挿入
   const firstPinned = tableRows.querySelector("[data-pin-bottom]");
-  if (noUnit || !firstPinned) {
-    tableRows.appendChild(row);
-  } else {
+  if (firstPinned) {
     tableRows.insertBefore(row, firstPinned);
+  } else {
+    tableRows.appendChild(row);
   }
 
   setupDragAndDrop(row, tableRows);

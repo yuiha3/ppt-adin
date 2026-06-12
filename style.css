@@ -228,9 +228,14 @@
   gap: 4px;
 }
 
-/* 単位なし行（その他・写真番号） */
+/* 単位なし行（その他・写真番号）：内容欄の幅を通常行と揃えるため列構成を同じにする */
 .noUnitRow {
-  grid-template-columns: 16px 1.5fr 1fr 24px;
+  grid-template-columns: 16px 1.5fr 1fr 0.8fr 24px;
+}
+
+/* 数量(textarea)が単位列まで広がるよう2列分使用 */
+.noUnitRow .quantityTextarea {
+  grid-column: span 2;
 }
 
 .tableHeader {
