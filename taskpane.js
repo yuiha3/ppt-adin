@@ -629,9 +629,10 @@ async function outputTableToSlide(includeQuantity = false) {
     });
 
     const cellStyle = {
-      fill:    { color: "FFFFFF" },
-      font:    { name: "Meiryo", size: 9, bold: true, color: "000000" },
-      margins: { top: 0, bottom: 0, left: 5, right: 0 }
+      fill:               { color: "FFFFFF" },
+      font:               { name: "Meiryo", size: 9, bold: true, color: "000000" },
+      margins:            { top: 0, bottom: 0, left: 5, right: 0 },
+      verticalAlignment:  "Bottom"
     };
 
     const specificCellProperties = Array.from({ length: rowCount }, (_, r) => {
