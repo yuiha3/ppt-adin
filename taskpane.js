@@ -52,11 +52,39 @@ const DEFECT_GROUPS = [
   },
 ];
 
-Office.onReady(() => {
+Office.onReady(async () => {
   initializeTabs();
   initializeTableBuilder();
   initializeSummaryButtons();
+
+  // ── API バージョン確認用（確認後に削除） ──
+  const v18 = Office.context.requirements.isSetSupported("PowerPointApi", "1.8");
+  const v19 = Office.context.requirements.isSetSupported("PowerPointApi", "1.9");
+  await placeApiVersionOnSlide(v18, v19);
 });
+
+async function placeApiVersionOnSlide(v18, v19) {
+  try {
+    await PowerPoint.run(async (context) => {
+      const slides = context.presentation.slides;
+      slides.load("items");
+      await context.sync();
+      const slide = slides.items[0];
+
+      const shape = slide.shapes.addGeometricShape("rectangle");
+      Object.assign(shape, { left: 50, top: 50, width: 300, height: 60 });
+      shape.fill.setSolidColor("E8F4FD");
+      await context.sync();
+
+      shape.textFrame.textRange.text =
+        "API v1.8: " + (v18 ? "✓" : "✗") + "  /  v1.9: " + (v19 ? "✓" : "✗");
+      Object.assign(shape.textFrame.textRange.font, {
+        size: 11, color: "003366", bold: true, name: "Meiryo"
+      });
+      await context.sync();
+    });
+  } catch { /* スライドが開いていない場合は無視 */ }
+}
 
 // ─── 初期化 ──────────────────────────────────────────────
 
@@ -312,12 +340,18 @@ async function outputTableToSlide() {
       });
     });
 
+    // uniformCellProperties で全セルに Left を先に適用し、
+    // specificCellProperties で各セル固有の設定を上書きする
+    // （デフォルトのテーブルスタイルが horizontalAlignment を上書きするのを防ぐため）
     const tableShape = slide.shapes.addTable(rowCount, 3, {
       left:    30,
       top:     120,
-      style:   "NoStyleNoGrid",  // デフォルトスタイルをリセットして horizontalAlignment を確実に効かせる
       columns: colWidths.map((w) => ({ columnWidth: w })),
       rows:    Array.from({ length: rowCount }, () => ({ rowHeight })),
+      uniformCellProperties: {
+        horizontalAlignment: "Left",
+        verticalAlignment:   "MiddleCentered"
+      },
       mergedAreas,
       specificCellProperties
     });
