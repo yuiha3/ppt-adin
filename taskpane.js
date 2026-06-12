@@ -474,38 +474,43 @@ function bindClick(elementId, handler) {
 }
 
 /**
- * エラーメッセージをスライド上にテキストボックスとして配置する。
+ * エラーメッセージをスライド上に図形テキストとして配置する。
  * デバッグ用。エラー内容の把握に使用する。
  */
 async function placeErrorTextOnSlide(message) {
-  try {
-    await PowerPoint.run(async (context) => {
-      const slides = context.presentation.getSelectedSlides();
-      slides.load("items");
+  await PowerPoint.run(async (context) => {
+    // 現在のスライドを取得
+    let slide;
+    try {
+      const selected = context.presentation.getSelectedSlides();
+      selected.load("items");
       await context.sync();
-
-      const slide = slides.items[0] ?? context.presentation.slides.getItemAt(0);
-      const PT = 12700;
-
-      const box = slide.shapes.addTextBox(
-        "ERROR: " + message,
-        {
-          left:   10 * PT,
-          top:    10 * PT,
-          width:  400 * PT,
-          height: 60  * PT
-        }
-      );
-
-      box.textFrame.textRange.font.size  = 9;
-      box.textFrame.textRange.font.color = "FF0000";
-      box.textFrame.textRange.font.bold  = true;
-
+      slide = selected.items[0];
+    } catch {
+      const allSlides = context.presentation.slides;
+      allSlides.load("items");
       await context.sync();
-    });
-  } catch {
-    // エラー表示自体が失敗しても無視
-  }
+      slide = allSlides.items[0];
+    }
+
+    // 四角形図形にテキストを入れる（addTextBoxより互換性が高い）
+    const shape = slide.shapes.addGeometricShape("rectangle");
+    shape.left   = 50;
+    shape.top    = 50;
+    shape.width  = 600;
+    shape.height = 120;
+    shape.fill.setSolidColor("FFEEEE");
+
+    await context.sync();
+
+    shape.textFrame.textRange.text       = "DEBUG ERROR:\n" + message;
+    shape.textFrame.textRange.font.size  = 10;
+    shape.textFrame.textRange.font.color = "CC0000";
+    shape.textFrame.textRange.font.bold  = true;
+    shape.textFrame.textRange.font.name  = "Meiryo";
+
+    await context.sync();
+  });
 }
 
 // ─── 集計処理 ─────────────────────────────────────────────
