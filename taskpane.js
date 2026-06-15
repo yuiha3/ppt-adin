@@ -195,6 +195,10 @@ async function insertPdfToSlides() {
     showPdfStatus("先にPDFを読み込んでください。", "error");
     return;
   }
+  if (typeof PptxGenJS === "undefined") {
+    showPdfStatus("PptxGenJSが読み込まれていません。", "error");
+    return;
+  }
 
   showPdfStatus("スライドに挿入しています...", "info");
   document.getElementById("pdfInsertButton").disabled = true;
@@ -206,60 +210,50 @@ async function insertPdfToSlides() {
       slides.load("items");
       await context.sync();
 
-      // スライドサイズを pageSetup（API 1.10）で取得、失敗時はA3縦を固定値として使用
-      let slideW = 841.9;   // A3縦 pt（デフォルト）
-      let slideH = 1190.4;
-      try {
-        const pageSetup = presentation.pageSetup;
-        pageSetup.load("slideWidth,slideHeight");
-        await context.sync();
-        if (pageSetup.slideWidth && pageSetup.slideHeight) {
-          slideW = pageSetup.slideWidth;
-          slideH = pageSetup.slideHeight;
-        }
-      } catch {
-        // API 1.10未満の環境ではA3固定値を使用
-      }
+      // 現在のスライドの末尾に挿入するための基準スライドIDを取得
+      slides.load("items");
+      await context.sync();
+      const lastSlideId = slides.items.length > 0
+        ? slides.items[slides.items.length - 1].id
+        : undefined;
 
       for (let i = 0; i < pdfPageImages.length; i++) {
         showPdfStatus(`挿入中: ${i + 1} / ${pdfPageImages.length} ページ`, "info");
 
-        // 追加前のスライド数を取得（add()はvoidを返すため、インデックスで取得する）
-        const slideCount = slides.getCount();
-        await context.sync();
+        const { base64, width, height } = pdfPageImages[i];
+        // アスペクト比からスライドサイズを決定（A3横をベースにスケール）
+        // pptxgenjs の単位はインチ
+        const PT_TO_IN  = 1 / 72;
+        // PDFページのアスペクト比をそのまま使用（A3横基準）
+        const slideW_in = 16.535; // A3横 inches
+        const slideH_in = slideW_in * (height / width);
 
-        slides.add();
-        await context.sync();
+        // pptxgenjs でPicture（トリミング可能）として埋め込む
+        const pptx = new PptxGenJS();
+        pptx.defineLayout({ name: "PDF_PAGE", width: slideW_in, height: slideH_in });
+        pptx.layout = "PDF_PAGE";
 
-        // 追加後のスライドは追加前の件数のインデックスに存在する（0-based）
-        const newSlide = slides.getItemAt(slideCount.value);
-        newSlide.load("shapes");
-        await context.sync();
-
-        // PDFページのアスペクト比を保ちつつ、スライド内に全体を収める（contain）
-        // PowerPoint上でトリミングできるように、図形の塗りつぶしではなく「画像」として挿入する。
-        const imgW = pdfPageImages[i].width;
-        const imgH = pdfPageImages[i].height;
-        const margin = 10;
-        const scaleW = (slideW - margin * 2) / imgW;
-        const scaleH = (slideH - margin * 2) / imgH;
-        const fitScale = Math.min(scaleW, scaleH);
-        const fitW  = imgW * fitScale;
-        const fitH  = imgH * fitScale;
-        const left = (slideW - fitW) / 2;
-        const top  = (slideH - fitH) / 2;
-
-        if (!newSlide.shapes.addPicture) {
-          throw new Error("このPowerPoint環境では画像として挿入するAPI（shapes.addPicture）が使用できません。Office.js / PowerPointApiの更新が必要です。");
-        }
-
-        const picture = newSlide.shapes.addPicture(pdfPageImages[i].base64, {
-          left,
-          top,
-          width:  fitW,
-          height: fitH
+        const slide = pptx.addSlide();
+        slide.background = { color: "FFFFFF" };
+        // addImage → PPTX内で <p:pic> として埋め込まれトリミング可能
+        slide.addImage({
+          data:  "image/png;base64," + base64,
+          x: 0, y: 0,
+          w: slideW_in,
+          h: slideH_in
         });
-        picture.name = `PDF図面 ${i + 1}`;
+
+        // Base64 PPTXを生成
+        const pptxBase64 = await pptx.write({ outputType: "base64" });
+
+        // insertSlidesFromBase64 で現在のプレゼンに挿入
+        const insertOptions = {
+          formatting: "UseDestinationTheme"
+        };
+        if (lastSlideId) {
+          insertOptions.targetSlideId = lastSlideId;
+        }
+        presentation.insertSlidesFromBase64(pptxBase64, insertOptions);
         await context.sync();
       }
     });
