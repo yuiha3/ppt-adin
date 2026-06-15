@@ -204,7 +204,9 @@ async function insertPdfToSlides() {
   document.getElementById("pdfInsertButton").disabled = true;
 
   try {
-    showPdfStatus("PPTXを生成中...", "info");
+    const insertBtn = document.getElementById("pdfInsertButton");
+  insertBtn.textContent = "処理中・・・";
+  showPdfStatus("PPTXを生成中...", "info");
 
     // 全ページを1つのPPTXにまとめて生成（ZIP圧縮は1回だけ）
     const pptx = new PptxGenJS();
@@ -259,7 +261,8 @@ async function insertPdfToSlides() {
     console.error(err);
     showPdfStatus("挿入に失敗しました: " + err.message, "error");
   } finally {
-    document.getElementById("pdfInsertButton").disabled = false;
+    insertBtn.disabled = false;
+    insertBtn.textContent = "スライドに挿入";
   }
 }
 
