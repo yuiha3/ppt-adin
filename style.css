@@ -507,20 +507,25 @@
   text-overflow: ellipsis;
 }
 
-.output-btn:hover  { background: #005fa3; }
-.output-btn:active { background: #004f8a; }
+.output-btn:hover:not(:disabled)  { background: #005fa3; }
+.output-btn:active:not(:disabled) { background: #004f8a; }
+.output-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: auto; /* カーソル変化を見せつつクリックは無効 */
+}
 
 .output-btn--sub {
   background: #6b7280;
 }
-.output-btn--sub:hover  { background: #4b5563; }
-.output-btn--sub:active { background: #374151; }
+.output-btn--sub:hover:not(:disabled)  { background: #4b5563; }
+.output-btn--sub:active:not(:disabled) { background: #374151; }
 
 .output-btn--green {
   background: #059669;
 }
-.output-btn--green:hover  { background: #047857; }
-.output-btn--green:active { background: #065f46; }
+.output-btn--green:hover:not(:disabled)  { background: #047857; }
+.output-btn--green:active:not(:disabled) { background: #065f46; }
 
 /* =============================================
    自動集計ポップアップ
