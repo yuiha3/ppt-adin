@@ -236,16 +236,25 @@ async function insertPdfToSlides() {
         newSlide.load("shapes");
         await context.sync();
 
-        // PDFページのアスペクト比を保ちつつスライド全体を埋める（cover）
+        // PDFページのアスペクト比を保ちつつ、スライド内に全体を収める（contain）
+        // cover（Math.max）だとPDF端部がスライド外にはみ出し、左上などの文字が切れることがある。
         const imgW = pdfPageImages[i].width;
         const imgH = pdfPageImages[i].height;
-        const scaleW = slideW / imgW;
-        const scaleH = slideH / imgH;
-        // アスペクト比を保ったままスライドを完全に覆うためcoverスケールを使用
-        const coverScale = Math.max(scaleW, scaleH);
-        const fitW  = imgW * coverScale;
-        const fitH  = imgH * coverScale;
-        // スライド中央に配置（はみ出た分は外側にはみ出る）
+
+        // 端部の文字・罫線がPowerPoint上で欠けないよう、少し余白を確保する。
+        const margin = 10;
+        const availableW = Math.max(slideW - margin * 2, 1);
+        const availableH = Math.max(slideH - margin * 2, 1);
+
+        const scaleW = availableW / imgW;
+        const scaleH = availableH / imgH;
+
+        // PDF全体を切らずに収めるため、containスケールを使用する。
+        const containScale = Math.min(scaleW, scaleH);
+        const fitW = imgW * containScale;
+        const fitH = imgH * containScale;
+
+        // スライド中央に配置する。
         const left = (slideW - fitW) / 2;
         const top  = (slideH - fitH) / 2;
 
