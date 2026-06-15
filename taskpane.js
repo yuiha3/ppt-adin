@@ -204,58 +204,54 @@ async function insertPdfToSlides() {
   document.getElementById("pdfInsertButton").disabled = true;
 
   try {
+    showPdfStatus("PPTXを生成中...", "info");
+
+    // 全ページを1つのPPTXにまとめて生成（ZIP圧縮は1回だけ）
+    const pptx = new PptxGenJS();
+
+    // 最初のページのアスペクト比でレイアウトを定義（全ページ共通）
+    const firstPage = pdfPageImages[0];
+    const slideW_in = 16.535; // A3横 inches
+    const slideH_in = slideW_in * (firstPage.height / firstPage.width);
+    pptx.defineLayout({ name: "PDF_PAGE", width: slideW_in, height: slideH_in });
+    pptx.layout = "PDF_PAGE";
+
+    for (let i = 0; i < pdfPageImages.length; i++) {
+      const { base64, width, height } = pdfPageImages[i];
+      // ページごとに縦横比が異なる場合は個別サイズで対応
+      const pageH_in = slideW_in * (height / width);
+
+      const slide = pptx.addSlide();
+      slide.background = { color: "FFFFFF" };
+      // addImage → PPTX内で <p:pic> として埋め込まれトリミング可能
+      slide.addImage({
+        data: "image/png;base64," + base64,
+        x: 0, y: 0,
+        w: slideW_in,
+        h: pageH_in
+      });
+    }
+
+    // ZIP圧縮・Base64変換を1回だけ実行
+    const pptxBase64 = await pptx.write({ outputType: "base64" });
+
+    showPdfStatus("スライドに挿入中...", "info");
+
     await PowerPoint.run(async (context) => {
       const presentation = context.presentation;
       const slides = presentation.slides;
       slides.load("items");
       await context.sync();
 
-      // 現在のスライドの末尾に挿入するための基準スライドIDを取得
-      slides.load("items");
-      await context.sync();
       const lastSlideId = slides.items.length > 0
         ? slides.items[slides.items.length - 1].id
         : undefined;
 
-      for (let i = 0; i < pdfPageImages.length; i++) {
-        showPdfStatus(`挿入中: ${i + 1} / ${pdfPageImages.length} ページ`, "info");
-
-        const { base64, width, height } = pdfPageImages[i];
-        // アスペクト比からスライドサイズを決定（A3横をベースにスケール）
-        // pptxgenjs の単位はインチ
-        const PT_TO_IN  = 1 / 72;
-        // PDFページのアスペクト比をそのまま使用（A3横基準）
-        const slideW_in = 16.535; // A3横 inches
-        const slideH_in = slideW_in * (height / width);
-
-        // pptxgenjs でPicture（トリミング可能）として埋め込む
-        const pptx = new PptxGenJS();
-        pptx.defineLayout({ name: "PDF_PAGE", width: slideW_in, height: slideH_in });
-        pptx.layout = "PDF_PAGE";
-
-        const slide = pptx.addSlide();
-        slide.background = { color: "FFFFFF" };
-        // addImage → PPTX内で <p:pic> として埋め込まれトリミング可能
-        slide.addImage({
-          data:  "image/png;base64," + base64,
-          x: 0, y: 0,
-          w: slideW_in,
-          h: slideH_in
-        });
-
-        // Base64 PPTXを生成
-        const pptxBase64 = await pptx.write({ outputType: "base64" });
-
-        // insertSlidesFromBase64 で現在のプレゼンに挿入
-        const insertOptions = {
-          formatting: "UseDestinationTheme"
-        };
-        if (lastSlideId) {
-          insertOptions.targetSlideId = lastSlideId;
-        }
-        presentation.insertSlidesFromBase64(pptxBase64, insertOptions);
-        await context.sync();
-      }
+      // 全ページを1回のAPI呼び出しで挿入
+      const insertOptions = { formatting: "UseDestinationTheme" };
+      if (lastSlideId) insertOptions.targetSlideId = lastSlideId;
+      presentation.insertSlidesFromBase64(pptxBase64, insertOptions);
+      await context.sync();
     });
 
     showPdfStatus(`${pdfPageImages.length}枚のスライドを追加しました。`, "success");
