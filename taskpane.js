@@ -127,7 +127,9 @@ async function loadPdf(file) {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({
       data: arrayBuffer,
-      maxCanvasPixels: -1  // Canvas解像度制限を無効化（デフォルト16,777,216を超えるサイズに対応）
+      // CJKフォント（日本語・中国語・韓国語）を含むPDFのレンダリングに必要
+      cMapUrl:    `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/cmaps/`,
+      cMapPacked: true,
     }).promise;
     const numPages = pdf.numPages;
 
