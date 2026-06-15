@@ -55,6 +55,7 @@ const DEFECT_GROUPS = [
 
 // pdf.js CDN ワーカー設定（index.htmlでスクリプト読み込み後に設定される）
 const PDFJS_VERSION = "3.11.174";
+// PDF挿入修正版: contain配置で左上タイトル・端部の欠けを防止
 
 Office.onReady(() => {
   initializeTabs();
@@ -206,9 +207,11 @@ async function insertPdfToSlides() {
       slides.load("items");
       await context.sync();
 
-      // スライドサイズを pageSetup（API 1.10）で取得、失敗時はA3縦を固定値として使用
-      let slideW = 841.9;   // A3縦 pt（デフォルト）
-      let slideH = 1190.4;
+      // スライドサイズを pageSetup（API 1.10）で取得。
+      // 取得できない環境ではPowerPoint標準の16:9ワイドを仮値として使用する。
+      // ※旧コードのA3縦固定は、横長PDFで左上タイトルが切れる原因になり得るため変更。
+      let slideW = 960;   // 16:9 ワイド 13.333in × 7.5in 相当（pt）
+      let slideH = 540;
       try {
         const pageSetup = presentation.pageSetup;
         pageSetup.load("slideWidth,slideHeight");
@@ -218,7 +221,7 @@ async function insertPdfToSlides() {
           slideH = pageSetup.slideHeight;
         }
       } catch {
-        // API 1.10未満の環境ではA3固定値を使用
+        // API 1.10未満の環境では16:9ワイド仮値を使用
       }
 
       for (let i = 0; i < pdfPageImages.length; i++) {
@@ -236,40 +239,48 @@ async function insertPdfToSlides() {
         newSlide.load("shapes");
         await context.sync();
 
-        // PDFページのアスペクト比を保ちつつ、スライド内に全体を収める（contain）
-        // cover（Math.max）だとPDF端部がスライド外にはみ出し、左上などの文字が切れることがある。
+        // PDFページのアスペクト比を保ちつつ、スライド内に全体を収める（contain）。
+        // 旧コードのcover（Math.max）は上下左右の一部がスライド外へ出るため、左上タイトルが消える原因になる。
         const imgW = pdfPageImages[i].width;
         const imgH = pdfPageImages[i].height;
+        const margin = 10; // 端の文字・線が欠けないように安全余白を確保（pt）
 
-        // 端部の文字・罫線がPowerPoint上で欠けないよう、少し余白を確保する。
-        const margin = 10;
-        const availableW = Math.max(slideW - margin * 2, 1);
-        const availableH = Math.max(slideH - margin * 2, 1);
-
+        const availableW = Math.max(1, slideW - margin * 2);
+        const availableH = Math.max(1, slideH - margin * 2);
         const scaleW = availableW / imgW;
         const scaleH = availableH / imgH;
 
-        // PDF全体を切らずに収めるため、containスケールを使用する。
+        // 全体が切れないように小さい方の倍率を使用
         const containScale = Math.min(scaleW, scaleH);
         const fitW = imgW * containScale;
         const fitH = imgH * containScale;
 
-        // スライド中央に配置する。
-        const left = (slideW - fitW) / 2;
-        const top  = (slideH - fitH) / 2;
+        // 中央配置。containのためleft/topは原則マイナスにならない。
+        const left = Math.max(margin, (slideW - fitW) / 2);
+        const top  = Math.max(margin, (slideH - fitH) / 2);
 
-        const shape = newSlide.shapes.addGeometricShape("rectangle", {
-          left,
-          top,
-          width:  fitW,
-          height: fitH
-        });
-        await context.sync();
+        // 可能なら画像オブジェクトとして挿入する。
+        // addImageが使えない環境では、従来通り四角形の画像塗りつぶしにフォールバックする。
+        if (typeof newSlide.shapes.addImage === "function") {
+          const shape = newSlide.shapes.addImage(pdfPageImages[i].base64);
+          shape.left = left;
+          shape.top = top;
+          shape.width = fitW;
+          shape.height = fitH;
+          await context.sync();
+        } else {
+          const shape = newSlide.shapes.addGeometricShape("rectangle", {
+            left,
+            top,
+            width: fitW,
+            height: fitH
+          });
+          await context.sync();
 
-        // 枠線を非表示にして画像で塗りつぶす
-        shape.lineFormat.visible = false;
-        shape.fill.setImage(pdfPageImages[i].base64);
-        await context.sync();
+          shape.lineFormat.visible = false;
+          shape.fill.setImage(pdfPageImages[i].base64);
+          await context.sync();
+        }
       }
     });
 
