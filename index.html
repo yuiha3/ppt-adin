@@ -17,10 +17,10 @@
     </div>
 
     <nav class="tabs" aria-label="機能切り替え">
-      <button id="importTabButton" class="tabButton" type="button" data-tab-target="importTab">
+      <button id="importTabButton" class="tabButton active" type="button" data-tab-target="importTab">
         図面取込
       </button>
-      <button id="summaryTabButton" class="tabButton active" type="button" data-tab-target="summaryTab">
+      <button id="summaryTabButton" class="tabButton" type="button" data-tab-target="summaryTab">
         集計
       </button>
       <button id="tableTabButton" class="tabButton" type="button" data-tab-target="tableTab">
@@ -29,7 +29,7 @@
     </nav>
 
     <!-- 図面取込タブ -->
-    <section id="importTab" class="tabContent">
+    <section id="importTab" class="tabContent active">
 
       <p class="section-label">PDFを取り込む</p>
 
@@ -56,7 +56,7 @@
     </section>
 
     <!-- 集計タブ -->
-    <section id="summaryTab" class="tabContent active">
+    <section id="summaryTab" class="tabContent">
 
       <p class="section-label">固定色で集計</p>
       <div class="action-list">
