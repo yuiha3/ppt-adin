@@ -277,6 +277,7 @@ function initializeSummaryButtons() {
   bindClick("formatAllSlidesBlackCodeButton",   () => formatCodesByTextColor(COLORS.BLACK, true));
   bindClick("sumAreaByColorButton",             sumAreaBySelectedTextColor);
   bindClick("collectRedTextButton",             collectRedTextFromSlide);
+  bindClick("sumBakuretsuButton",               sumBakuretsuFromSlide);
 
   const copyBtn = document.getElementById(UI.copyButton);
   if (!copyBtn) return;
@@ -675,7 +676,9 @@ async function runAutoSum(activePopupRows, tableRowEls) {
         }
       } else {
         const result = await sumNumbersByColorDirect(fontColor, fillColor);
-        quantityInput.value = result !== null ? String(result) : "";
+        if (result !== null) {
+          quantityInput.value = result.total.toFixed(result.places);
+        }
       }
     } catch (e) { console.error("集計エラー:", e); }
   }
@@ -983,7 +986,11 @@ async function sumNumbersByTextColor(targetTextColor, decimalPlaces = null) {
     if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
 
     const total     = sum(numbers);
-    const totalStr  = decimalPlaces !== null ? total.toFixed(decimalPlaces) : String(total);
+    // 渡された decimalPlaces より、集計した数値群の最大桁数を優先する
+    const places    = numbers.length > 0
+      ? Math.max(maxDecimalPlacesFromNumbers(numbers), decimalPlaces ?? 0)
+      : (decimalPlaces ?? 0);
+    const totalStr  = numbers.length > 0 ? total.toFixed(places) : String(total);
     setResult({ text: totalStr, color: targetTextColor, copyValue: totalStr });
   });
 }
@@ -993,6 +1000,41 @@ async function sumNumbersBySelectedTextColor() {
   const selected = await getSelectedTextInfo();
   if (!selected.ok) { setResult({ text: selected.message }); return; }
   await sumNumbersByTextColor(selected.textColor, selected.decimalPlaces ?? null);
+}
+
+/**
+ * 現在のスライドの赤文字（R255,G0,B0）から「バN」形式のNを集計して合計を表示する。
+ * 「バ」のみで数字がない場合はスキップ。
+ */
+async function sumBakuretsuFromSlide() {
+  setResult({ text: "バを集計中..." });
+
+  await PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return;
+
+    const numbers = [];
+    for (const item of await getTextShapes(context, slide)) {
+      const coloredText = await extractTextByColor(
+        context, item.textRange, item.text, COLORS.RED
+      );
+      // 「バ」に続く数字（整数・小数）を抽出。「バ」のみは除外。
+      for (const m of coloredText.matchAll(/バ(\d+(?:\.\d+)?)(?=[\s\r\n]|$)/g)) {
+        const n = Number(m[1]);
+        if (!isNaN(n)) numbers.push(n);
+      }
+    }
+
+    if (numbers.length === 0) {
+      setResult({ text: "該当なし", color: COLORS.RED });
+      return;
+    }
+
+    const total    = sum(numbers);
+    const places   = maxDecimalPlacesFromNumbers(numbers);
+    const totalStr = total.toFixed(places);
+    setResult({ text: totalStr, color: COLORS.RED, copyValue: totalStr });
+  });
 }
 
 /**
@@ -1090,8 +1132,10 @@ async function sumNumbersBySelectedTextColorAndFillColor() {
 
     if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
 
-    const total = String(sum(numbers));
-    setResult({ text: total, color: selected.textColor, copyValue: total });
+    const total    = sum(numbers);
+    const places   = maxDecimalPlacesFromNumbers(numbers);
+    const totalStr = numbers.length > 0 ? total.toFixed(places) : String(total);
+    setResult({ text: totalStr, color: selected.textColor, copyValue: totalStr });
   });
 }
 
@@ -1115,7 +1159,10 @@ async function sumNumbersByColorDirect(targetTextColor, targetFillColor) {
 
     if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
 
-    return sum(numbers);
+    // total と最大小数桁数を両方返す
+    return numbers.length > 0
+      ? { total: sum(numbers), places: maxDecimalPlacesFromNumbers(numbers) }
+      : null;
   });
 }
 
@@ -1351,16 +1398,41 @@ function getDecimalPlaces(text) {
   return trimmed.length - dotIndex - 1;
 }
 
+/**
+ * 数値の配列から最大の小数桁数を返す。
+ * 例: [1.5, 2.10, 3] → 2（"2.10" を文字列化すると "2.1" になるため実際は1だが、
+ * extractNumbers は Number() 変換後なので末尾ゼロは失われる。
+ * そのためスライド上の生テキストから直接拾う必要がある。
+ * ここでは集計後の合計値の整形用に、numbers の各値の桁数の最大を返す。
+ */
+function maxDecimalPlacesFromNumbers(numbers) {
+  return numbers.reduce((max, n) => {
+    const s = String(n);
+    const dot = s.indexOf(".");
+    const places = dot === -1 ? 0 : s.length - dot - 1;
+    return Math.max(max, places);
+  }, 0);
+}
+
 function extractNumbers(text) {
-  // extractTextByColor は色違い文字をスペースに置換する。
-  // 「1.0x1.4」はトークン全体が数値でないので除外されるが、
-  // x が別色の場合「1.0 1.4」になるケースも防ぐため、
-  // まず「数値 x 数値」「数値x数値」の面積形式パターンを除去してから評価する。
+  // 面積形式（数値x数値）を先に除去
   const cleaned = text.replace(/\d+(?:\.\d+)?\s*[xX]\s*\d+(?:\.\d+)?/g, " ");
-  return cleaned.split(/\s+/)
-    .filter((t) => t.length > 0)
-    .map((t) => Number(t))
-    .filter((v) => !isNaN(v));
+
+  // 行単位で評価する。
+  // 「シール割れ 0.8」のように数字とピリオド以外の文字（日本語など）が
+  // 同じ行に含まれる場合はその行全体を除外する。
+  // ※ extractTextByColor は色違い文字をスペースに置換するため、
+  //   対象色の数値だけが残った行は「  0.8  」のように数字・スペースのみになる。
+  return cleaned.split(/[\r\n]+/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .filter((line) => /^[\d.\s\-+]+$/.test(line))  // 数字・ピリオド・スペース・符号のみの行だけ通す
+    .flatMap((line) =>
+      line.split(/\s+/)
+        .filter((t) => t.length > 0)
+        .map((t) => Number(t))
+        .filter((v) => !isNaN(v))
+    );
 }
 
 function extractLetterCodes(text) {
