@@ -1003,23 +1003,29 @@ async function sumNumbersBySelectedTextColor() {
 }
 
 /**
- * 現在のスライドの赤文字（R255,G0,B0）から「バN」形式のNを集計して合計を表示する。
- * 「バ」のみで数字がない場合はスキップ。
+ * 赤文字から「prefix + N」形式の N を集計する共通関数。
+ * prefix の直後が数値のみのもの（面積形式「N×N」などはスキップ）。
  */
-async function sumBakuretsuFromSlide() {
-  setResult({ text: "バを集計中..." });
+async function sumPrefixNumbersFromSlide(prefix, label) {
+  setResult({ text: label + "を集計中..." });
 
   await PowerPoint.run(async (context) => {
     const slide = await getCurrentSlide(context);
     if (!slide) return;
+
+    // prefix をリテラルとして扱う正規表現を動的生成
+    const pattern = new RegExp(prefix + "(\\d+(?:\\.\\d+)?)(?=[\\s\\r\\n]|$)", "g");
 
     const numbers = [];
     for (const item of await getTextShapes(context, slide)) {
       const coloredText = await extractTextByColor(
         context, item.textRange, item.text, COLORS.RED
       );
-      // 「バ」に続く数字（整数・小数）を抽出。「バ」のみは除外。
-      for (const m of coloredText.matchAll(/バ(\d+(?:\.\d+)?)(?=[\s\r\n]|$)/g)) {
+      // 全角数字・全角ピリオドを半角に変換してからマッチング
+      const normalized = coloredText
+        .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+        .replace(/．/g, ".");
+      for (const m of normalized.matchAll(pattern)) {
         const n = Number(m[1]);
         if (!isNaN(n)) numbers.push(n);
       }
@@ -1036,6 +1042,9 @@ async function sumBakuretsuFromSlide() {
     setResult({ text: totalStr, color: COLORS.RED, copyValue: totalStr });
   });
 }
+
+async function sumEfuroFromSlide()     { await sumPrefixNumbersFromSlide("エ", "エ"); }
+async function sumBakuretsuFromSlide() { await sumPrefixNumbersFromSlide("バ", "バ"); }
 
 /**
  * 現在のスライドの赤文字（R255,G0,B0）を全て収集して「, 」つなぎで表示する。
