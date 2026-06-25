@@ -1017,6 +1017,7 @@ async function sumPrefixNumbersFromSlide(prefix, label) {
     const pattern = new RegExp(prefix + "(\\d+(?:\\.\\d+)?)(?=[\\s\\r\\n]|$)", "g");
 
     const numbers = [];
+    const hitIds  = [];
     for (const item of await getTextShapes(context, slide)) {
       const coloredText = await extractTextByColor(
         context, item.textRange, item.text, COLORS.RED
@@ -1025,16 +1026,18 @@ async function sumPrefixNumbersFromSlide(prefix, label) {
       const normalized = coloredText
         .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
         .replace(/．/g, ".");
-      for (const m of normalized.matchAll(pattern)) {
-        const n = Number(m[1]);
-        if (!isNaN(n)) numbers.push(n);
-      }
+      const found = [...normalized.matchAll(pattern)]
+        .map((m) => Number(m[1]))
+        .filter((n) => !isNaN(n));
+      if (found.length > 0) { numbers.push(...found); hitIds.push(item.shapeId); }
     }
 
     if (numbers.length === 0) {
       setResult({ text: "該当なし", color: COLORS.RED });
       return;
     }
+
+    if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
 
     const total    = sum(numbers);
     const places   = maxDecimalPlacesFromNumbers(numbers);
