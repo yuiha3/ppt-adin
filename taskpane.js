@@ -277,6 +277,7 @@ function initializeSummaryButtons() {
   bindClick("formatAllSlidesBlackCodeButton",   () => formatCodesByTextColor(COLORS.BLACK, true));
   bindClick("sumAreaByColorButton",             sumAreaBySelectedTextColor);
   bindClick("collectRedTextButton",             collectRedTextFromSlide);
+  bindClick("sumEfuroButton",                   sumEfuroFromSlide);
   bindClick("sumBakuretsuButton",               sumBakuretsuFromSlide);
 
   const copyBtn = document.getElementById(UI.copyButton);
