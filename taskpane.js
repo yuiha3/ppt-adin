@@ -53,8 +53,9 @@ const DEFECT_GROUPS = [
   },
 ];
 
-// pdf.js CDN ワーカー設定（index.htmlでスクリプト読み込み後に設定される）
-const PDFJS_VERSION = "3.11.174";
+const PDFJS_VERSION  = "3.11.174";
+const PDF_RENDER_SCALE = 8.0;   // 576dpi相当（A3サイズ対応）
+const PDF_THUMB_SCALE  = 0.15;  // サムネイル縮小率
 
 Office.onReady(() => {
   initializeTabs();
@@ -63,19 +64,16 @@ Office.onReady(() => {
   initializePdfImport();
 });
 
-// ─── 初期化 ──────────────────────────────────────────────
-
 // ─── PDF取込 ─────────────────────────────────────────────
 
 let pdfPageImages = []; // {base64: string, width: number, height: number}[]
 
 function initializePdfImport() {
-  const dropZone    = document.getElementById("pdfDropZone");
-  const fileInput   = document.getElementById("pdfFileInput");
-  const insertBtn   = document.getElementById("pdfInsertButton");
+  const dropZone  = document.getElementById("pdfDropZone");
+  const fileInput = document.getElementById("pdfFileInput");
+  const insertBtn = document.getElementById("pdfInsertButton");
   if (!dropZone || !fileInput || !insertBtn) return;
 
-  // ドラッグ&ドロップ
   dropZone.addEventListener("dragover", (e) => {
     e.preventDefault();
     dropZone.classList.add("pdf-drop-zone--active");
@@ -91,13 +89,11 @@ function initializePdfImport() {
     else showPdfStatus("PDFファイルをドロップしてください。", "error");
   });
 
-  // ファイル選択
   fileInput.addEventListener("change", () => {
     const file = fileInput.files[0];
     if (file) loadPdf(file);
   });
 
-  // スライド挿入ボタン
   insertBtn.addEventListener("click", insertPdfToSlides);
 }
 
@@ -105,7 +101,7 @@ function showPdfStatus(message, type = "info") {
   const el = document.getElementById("pdfStatus");
   if (!el) return;
   el.textContent = message;
-  el.className = `pdf-status pdf-status--${type}`;
+  el.className   = `pdf-status pdf-status--${type}`;
   el.style.display = "block";
 }
 
@@ -116,7 +112,6 @@ async function loadPdf(file) {
   pdfPageImages = [];
 
   try {
-    // pdf.js が読み込まれているか確認
     if (typeof pdfjsLib === "undefined") {
       showPdfStatus("pdf.jsが読み込まれていません。", "error");
       return;
@@ -124,61 +119,48 @@ async function loadPdf(file) {
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
 
-    const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({
-      data: arrayBuffer,
-      // CJKフォント（日本語・中国語・韓国語）を含むPDFのレンダリングに必要
+      data:       await file.arrayBuffer(),
       cMapUrl:    `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/cmaps/`,
       cMapPacked: true,
     }).promise;
-    const numPages = pdf.numPages;
 
-    showPdfStatus(`${numPages}ページを変換中...`, "info");
-
+    const numPages   = pdf.numPages;
     const previewList = document.getElementById("pdfPreviewList");
 
     for (let i = 1; i <= numPages; i++) {
       showPdfStatus(`変換中: ${i} / ${numPages} ページ`, "info");
 
-      const page = await pdf.getPage(i);
-      // scale: 8.0 = 576dpi相当（A3サイズ対応）
-      const TARGET_SCALE = 8.0;
-      const viewport = page.getViewport({ scale: TARGET_SCALE });
+      const page     = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: PDF_RENDER_SCALE });
+      const canvas   = document.createElement("canvas");
+      canvas.width   = Math.ceil(viewport.width);
+      canvas.height  = Math.ceil(viewport.height);
 
-      // Canvasサイズをviewportと完全一致させる（transform不要）
-      // Math.floorによるわずかなずれもなくすためceil→整数化
-      const canvasWidth  = Math.ceil(viewport.width);
-      const canvasHeight = Math.ceil(viewport.height);
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
 
-      const canvas = document.createElement("canvas");
-      canvas.width  = canvasWidth;
-      canvas.height = canvasHeight;
+      pdfPageImages.push({
+        base64: canvas.toDataURL("image/png").split(",")[1],
+        width:  viewport.width,
+        height: viewport.height
+      });
 
-      await page.render({
-        canvasContext: canvas.getContext("2d"),
-        viewport
-      }).promise;
+      // サムネイル
+      const thumb = document.createElement("canvas");
+      thumb.width  = Math.ceil(viewport.width  * PDF_THUMB_SCALE);
+      thumb.height = Math.ceil(viewport.height * PDF_THUMB_SCALE);
+      thumb.getContext("2d").drawImage(canvas, 0, 0, thumb.width, thumb.height);
 
-      const base64 = canvas.toDataURL("image/png").split(",")[1];
-      pdfPageImages.push({ base64, width: viewport.width, height: viewport.height });
-
-      // サムネイル表示（scale: 0.15で縮小）
-      const thumbCanvas = document.createElement("canvas");
-      const thumbScale  = 0.15;
-      thumbCanvas.width  = viewport.width  * thumbScale;
-      thumbCanvas.height = viewport.height * thumbScale;
-      const thumbCtx = thumbCanvas.getContext("2d");
-      thumbCtx.drawImage(canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
-
-      const thumb = document.createElement("div");
-      thumb.className = "pdf-thumb";
-      const img = document.createElement("img");
-      img.src = thumbCanvas.toDataURL("image/png");
-      img.alt = `${i}ページ`;
-      const label = document.createElement("p");
-      label.textContent = `${i} / ${numPages}`;
-      thumb.append(img, label);
-      previewList.appendChild(thumb);
+      const img = Object.assign(document.createElement("img"), {
+        src: thumb.toDataURL("image/png"), alt: `${i}ページ`
+      });
+      const lbl = Object.assign(document.createElement("p"), {
+        textContent: `${i} / ${numPages}`
+      });
+      const thumbDiv = document.createElement("div");
+      thumbDiv.className = "pdf-thumb";
+      thumbDiv.append(img, lbl);
+      previewList.appendChild(thumbDiv);
     }
 
     showPdfStatus(`${numPages}ページの変換が完了しました。`, "success");
@@ -200,61 +182,43 @@ async function insertPdfToSlides() {
     return;
   }
 
-  // ボタンをすぐに無効化・テキスト変更してからawaitに入る
   const insertBtn = document.getElementById("pdfInsertButton");
-  insertBtn.disabled = true;
+  insertBtn.disabled    = true;
   insertBtn.textContent = "処理中・・・";
-  // ブラウザに再描画の機会を与えてからUIが更新されるようにする
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   try {
     showPdfStatus("PPTXを生成中...", "info");
 
-    // 全ページを1つのPPTXにまとめて生成（ZIP圧縮は1回だけ）
-    const pptx = new PptxGenJS();
-
-    // 最初のページのアスペクト比でレイアウトを定義（全ページ共通）
-    const firstPage = pdfPageImages[0];
+    const pptx      = new PptxGenJS();
     const slideW_in = 16.535; // A3横 inches
-    const slideH_in = slideW_in * (firstPage.height / firstPage.width);
+    const slideH_in = slideW_in * (pdfPageImages[0].height / pdfPageImages[0].width);
     pptx.defineLayout({ name: "PDF_PAGE", width: slideW_in, height: slideH_in });
     pptx.layout = "PDF_PAGE";
 
-    for (let i = 0; i < pdfPageImages.length; i++) {
-      const { base64, width, height } = pdfPageImages[i];
-      // ページごとに縦横比が異なる場合は個別サイズで対応
-      const pageH_in = slideW_in * (height / width);
-
+    for (const { base64, width, height } of pdfPageImages) {
       const slide = pptx.addSlide();
       slide.background = { color: "FFFFFF" };
-      // addImage → PPTX内で <p:pic> として埋め込まれトリミング可能
       slide.addImage({
         data: "image/png;base64," + base64,
         x: 0, y: 0,
         w: slideW_in,
-        h: pageH_in
+        h: slideW_in * (height / width)
       });
     }
 
-    // ZIP圧縮・Base64変換を1回だけ実行
     const pptxBase64 = await pptx.write({ outputType: "base64" });
-
     showPdfStatus("スライドに挿入中...", "info");
 
     await PowerPoint.run(async (context) => {
-      const presentation = context.presentation;
-      const slides = presentation.slides;
+      const slides = context.presentation.slides;
       slides.load("items");
       await context.sync();
 
-      const lastSlideId = slides.items.length > 0
-        ? slides.items[slides.items.length - 1].id
-        : undefined;
-
-      // 全ページを1回のAPI呼び出しで挿入
+      const lastSlideId = slides.items.at(-1)?.id;
       const insertOptions = { formatting: "UseDestinationTheme" };
       if (lastSlideId) insertOptions.targetSlideId = lastSlideId;
-      presentation.insertSlidesFromBase64(pptxBase64, insertOptions);
+      context.presentation.insertSlidesFromBase64(pptxBase64, insertOptions);
       await context.sync();
     });
 
@@ -263,14 +227,16 @@ async function insertPdfToSlides() {
     console.error(err);
     showPdfStatus("挿入に失敗しました: " + err.message, "error");
   } finally {
-    insertBtn.disabled     = false;
-    insertBtn.textContent  = "スライドに挿入";
+    insertBtn.disabled    = false;
+    insertBtn.textContent = "スライドに挿入";
   }
 }
 
+// ─── 初期化 ──────────────────────────────────────────────
+
 function initializeSummaryButtons() {
-  bindClick("sumBlueButton",  () => sumNumbersByTextColor(COLORS.BLUE));
-  bindClick("sumGreenButton", () => sumNumbersByTextColor(COLORS.GREEN));
+  bindClick("sumBlueButton",                    () => sumNumbersByTextColor(COLORS.BLUE));
+  bindClick("sumGreenButton",                   () => sumNumbersByTextColor(COLORS.GREEN));
   bindClick("sumSelectedColorButton",           sumNumbersBySelectedTextColor);
   bindClick("sumSelectedTextAndFillColorButton", sumNumbersBySelectedTextColorAndFillColor);
   bindClick("formatBlackCodeButton",            () => formatCodesByTextColor(COLORS.BLACK, false));
@@ -395,9 +361,8 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
 
   const quantityEl = noUnit
     ? Object.assign(document.createElement("textarea"), {
-        className:   "tableInput quantityInput quantityTextarea",
-        placeholder: "入力",
-        rows:        2
+        className: "tableInput quantityInput quantityTextarea",
+        placeholder: "入力", rows: 2
       })
     : createTableInput({ className: "quantityInput", placeholder: "数量", inputmode: "numeric" });
 
@@ -489,13 +454,6 @@ function clearTableRows() {
   );
 }
 
-/**
- * 確認ダイアログを表示する。
- * @param {string}   title        - タイトル
- * @param {string}   message      - 説明文
- * @param {string}   confirmLabel - 確認ボタンのラベル
- * @param {Function} onConfirm    - 確認ボタン押下時のコールバック
- */
 function showConfirmDialog(title, message, confirmLabel, onConfirm) {
   document.getElementById("confirmDialog")?.remove();
 
@@ -547,7 +505,6 @@ function openAutoSumPopup() {
 
   const inner = document.createElement("div");
   inner.className = "autosum-popup__inner";
-
   inner.append(
     Object.assign(document.createElement("div"), { className: "autosum-popup__header", textContent: "自動集計" })
   );
@@ -580,21 +537,16 @@ function openAutoSumPopup() {
   document.body.appendChild(overlay);
 }
 
-/**
- * 自動集計ポップアップの1行要素を生成する。
- */
 function makeAutoSumRow(rowData, index, tableRowEls) {
   const domRow    = tableRowEls[index];
   const fontColor = domRow?.querySelector(".color-dot[data-color-type='font']")?.dataset.color ?? null;
   const fillColor = domRow?.querySelector(".color-dot[data-color-type='fill']")?.dataset.color ?? null;
-  const showDots  = !rowData.noUnit;
 
-  // ── カード全体 ──────────────────────────────────
   const rowEl = document.createElement("div");
   rowEl.className = "autosum-row";
   rowEl.dataset.rowIndex = String(index);
 
-  // ── 1行目：項目名 ＋ 削除ボタン ─────────────────
+  // 1行目：項目名 + 削除ボタン
   const header = document.createElement("div");
   header.className = "autosum-row__header";
 
@@ -612,35 +564,32 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
   header.append(content, delBtn);
   rowEl.appendChild(header);
 
-  if (!showDots) return rowEl;  // noUnit行（その他・写真番号）はここで終了
+  // noUnit行（その他・写真番号）は項目名+削除ボタンのみ
+  if (rowData.noUnit) return rowEl;
 
-  // ── 2行目：文字色・背景色の丸ボタン（爆裂・エフロ行は不要のため非表示）──
+  // 爆裂・エフロ行は文字色・背景色不要
   const isBaRow    = rowData.content.includes("爆裂");
   const isEfuroRow = rowData.content.includes("エフロ");
-  const showColorRow = !isBaRow && !isEfuroRow;
 
-  if (showColorRow) {
+  if (!isBaRow && !isEfuroRow) {
+    // 2行目：文字色・背景色の丸ボタン
     const colorRow = document.createElement("div");
     colorRow.className = "autosum-row__colors";
 
     const makeDotItem = (type, color, label) => {
       const wrapper = document.createElement("div");
       wrapper.className = "autosum-dot-item";
-
       const dot = makeColorDot(type, color, () => {
         openColorPicker(dot, type, (selected) => {
           const target = domRow?.querySelector(`.color-dot[data-color-type='${type}']`);
           if (target) { target.style.background = selected; target.dataset.color = selected; }
-          if (type === "font") content.style.color = selected;
+          if (type === "font") content.style.color      = selected;
           else                 content.style.background = selected;
         });
       });
-
-      const lbl = Object.assign(document.createElement("span"), {
+      wrapper.append(dot, Object.assign(document.createElement("span"), {
         className: "autosum-dot-label", textContent: label
-      });
-
-      wrapper.append(dot, lbl);
+      }));
       return wrapper;
     };
 
@@ -651,32 +600,24 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
     rowEl.appendChild(colorRow);
   }
 
-  // ── 3行目：行の内容に応じてチェックボックスを切り替え ──
-  const checkRow = document.createElement("div");
-  checkRow.className = "autosum-row__checks";
-
+  // 3行目：チェックボックス（行の種類に応じて切り替え）
   const makeCheck = (className, labelText) => {
     const label = document.createElement("label");
     label.className = "autosum-check-item";
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.className = className;
-    const lbl = Object.assign(document.createElement("span"), {
+    const cb = Object.assign(document.createElement("input"), { type: "checkbox", className });
+    label.append(cb, Object.assign(document.createElement("span"), {
       className: "autosum-area-label", textContent: labelText
-    });
-    label.append(cb, lbl);
+    }));
     return label;
   };
 
-  // 「爆裂」「エフロ」を含む行は専用チェックのみ、それ以外は面積計算チェックのみ
-  if (isBaRow) {
-    checkRow.append(makeCheck("autosum-ba-checkbox", "バを集計"));
-  } else if (isEfuroRow) {
-    checkRow.append(makeCheck("autosum-efuro-checkbox", "エを集計"));
-  } else {
-    checkRow.append(makeCheck("autosum-area-checkbox", "面積計算"));
-  }
-
+  const checkRow = document.createElement("div");
+  checkRow.className = "autosum-row__checks";
+  checkRow.append(
+    isBaRow    ? makeCheck("autosum-ba-checkbox",    "バを集計") :
+    isEfuroRow ? makeCheck("autosum-efuro-checkbox", "エを集計") :
+                 makeCheck("autosum-area-checkbox",  "面積計算")
+  );
   rowEl.appendChild(checkRow);
 
   return rowEl;
@@ -686,9 +627,6 @@ function closeAutoSumPopup() {
   document.getElementById("autoSumPopup")?.remove();
 }
 
-/**
- * 自動集計実行。ポップアップ内で現在表示中の行から色を読み、数量欄に書き込む。
- */
 async function runAutoSum(activePopupRows, tableRowEls) {
   setResult({ text: "自動集計中..." });
 
@@ -700,7 +638,7 @@ async function runAutoSum(activePopupRows, tableRowEls) {
     const quantityInput = domRow?.querySelector(".quantityInput");
     if (!quantityInput) continue;
 
-    // 写真番号行：写真番号集計を実行
+    // 写真番号行
     if (domRow?.dataset.pinBottom === "true") {
       try { quantityInput.value = await collectPhotoCodesFromSlide(); }
       catch (e) { console.error("写真番号集計エラー:", e); }
@@ -712,30 +650,26 @@ async function runAutoSum(activePopupRows, tableRowEls) {
     const isAreaMode  = popupRow.querySelector(".autosum-area-checkbox")?.checked  ?? false;
     const isBaMode    = popupRow.querySelector(".autosum-ba-checkbox")?.checked    ?? false;
     const isEfuroMode = popupRow.querySelector(".autosum-efuro-checkbox")?.checked ?? false;
-    if (!fontColor) continue;
 
     try {
-      if (isAreaMode) {
-        const result = await sumAreaByColorDirect(fontColor, fillColor);
-        if (result !== null) {
-          const rounded = Math.ceil(result * 100) / 100;
-          quantityInput.value = rounded.toFixed(2);
-        }
-      } else if (isBaMode || isEfuroMode) {
+      if (isBaMode || isEfuroMode) {
         const prefix = isBaMode ? "バ" : "エ";
         await PowerPoint.run(async (context) => {
           const slide = await getCurrentSlide(context);
           if (!slide) return;
           const { numbers } = await collectPrefixNumbers(context, slide, prefix);
-          if (numbers.length > 0) {
-            quantityInput.value = sum(numbers).toFixed(maxDecimalPlacesFromNumbers(numbers));
-          }
+          quantityInput.value = numbers.length > 0
+            ? sum(numbers).toFixed(maxDecimalPlacesFromNumbers(numbers))
+            : "0";
         });
+      } else if (!fontColor) {
+        quantityInput.value = "0";
+      } else if (isAreaMode) {
+        const result = await sumAreaByColorDirect(fontColor, fillColor);
+        quantityInput.value = (result ? Math.ceil(result * 100) / 100 : 0).toFixed(2);
       } else {
         const result = await sumNumbersByColorDirect(fontColor, fillColor);
-        if (result !== null) {
-          quantityInput.value = result.total.toFixed(result.places);
-        }
+        quantityInput.value = result !== null ? result.total.toFixed(result.places) : "0";
       }
     } catch (e) { console.error("集計エラー:", e); }
   }
@@ -746,8 +680,6 @@ async function runAutoSum(activePopupRows, tableRowEls) {
 // ─── カラーピッカー ──────────────────────────────────────
 
 async function openColorPicker(dotEl, colorType, onSelect = null) {
-  const title = colorType === "font" ? "集計したい文字色を選択" : "集計したい背景色を選択";
-
   closeColorPicker();
 
   let colors = [];
@@ -757,14 +689,15 @@ async function openColorPicker(dotEl, colorType, onSelect = null) {
   const popup = document.createElement("div");
   popup.id = "colorPickerPopup";
   popup.className = "color-picker-popup";
-  popup.append(
-    Object.assign(document.createElement("p"), { className: "color-picker-title", textContent: title })
-  );
+  popup.append(Object.assign(document.createElement("p"), {
+    className: "color-picker-title",
+    textContent: colorType === "font" ? "集計したい文字色を選択" : "集計したい背景色を選択"
+  }));
 
   if (colors.length === 0) {
-    popup.append(
-      Object.assign(document.createElement("p"), { className: "color-picker-empty", textContent: "色が見つかりませんでした" })
-    );
+    popup.append(Object.assign(document.createElement("p"), {
+      className: "color-picker-empty", textContent: "色が見つかりませんでした"
+    }));
   } else {
     const grid = document.createElement("div");
     grid.className = "color-picker-grid";
@@ -784,11 +717,9 @@ async function openColorPicker(dotEl, colorType, onSelect = null) {
     popup.appendChild(grid);
   }
 
-  const closeBtn = Object.assign(document.createElement("button"), {
+  popup.append(Object.assign(document.createElement("button"), {
     type: "button", className: "color-picker-close", textContent: "閉じる"
-  });
-  closeBtn.addEventListener("click", closeColorPicker);
-  popup.appendChild(closeBtn);
+  })).addEventListener("click", closeColorPicker);
 
   document.body.appendChild(popup);
   const rect = dotEl.getBoundingClientRect();
@@ -809,38 +740,40 @@ function closeColorPicker() {
 }
 
 /**
- * 現在のスライド上のテキストボックスからフォント色または背景色を収集する。
+ * 全スライドからフォント色または背景色を収集する。
  */
 async function collectSlideColors(colorType) {
   return PowerPoint.run(async (context) => {
-    const slide = await getCurrentSlide(context);
-    if (!slide) return [];
-
-    const shapes = slide.shapes;
-    shapes.load("items");
+    const allSlides = context.presentation.slides;
+    allSlides.load("items");
     await context.sync();
 
     const colorSet = new Set();
 
-    if (colorType === "fill") {
-      shapes.items.forEach((s) => s.fill.load("foregroundColor"));
-      await context.sync();
-      shapes.items.forEach((s) => {
-        const c = normalizeColor(s.fill.foregroundColor);
-        if (c && c !== "#ffffff" && c !== "#000000") colorSet.add(c);
-      });
-    } else {
-      for (const item of await getTextShapes(context, slide)) {
-        const charRanges = Array.from({ length: Math.min(item.text.length, 200) }, (_, i) => {
-          const cr = item.textRange.getSubstring(i, 1);
-          cr.font.load("color");
-          return cr;
-        });
+    for (const slide of allSlides.items) {
+      if (colorType === "fill") {
+        const shapes = slide.shapes;
+        shapes.load("items");
         await context.sync();
-        charRanges.forEach((cr) => {
-          const c = normalizeColor(cr.font.color);
-          if (c) colorSet.add(c);
+        shapes.items.forEach((s) => s.fill.load("foregroundColor"));
+        await context.sync();
+        shapes.items.forEach((s) => {
+          const c = normalizeColor(s.fill.foregroundColor);
+          if (c && c !== "#ffffff" && c !== "#000000") colorSet.add(c);
         });
+      } else {
+        for (const item of await getTextShapes(context, slide)) {
+          const charRanges = Array.from({ length: Math.min(item.text.length, 200) }, (_, i) => {
+            const cr = item.textRange.getSubstring(i, 1);
+            cr.font.load("color");
+            return cr;
+          });
+          await context.sync();
+          charRanges.forEach((cr) => {
+            const c = normalizeColor(cr.font.color);
+            if (c) colorSet.add(c);
+          });
+        }
       }
     }
 
@@ -850,24 +783,12 @@ async function collectSlideColors(colorType) {
 
 // ─── 表出力 ──────────────────────────────────────────────
 
-/**
- * tableRows の内容を読み取り、現在のスライドに表を出力する。
- *
- * 表仕様（VBAコード準拠）
- *   列：内容 80pt / 数量 60pt / 単位 105pt
- *   1行目：ヘッダー（下罫線のみ）
- *   2行目以降：全罫線 黒 1pt
- *   全セル：背景白、余白 上下0 左5pt、下寄せ、フォント9pt 黒 太字 メイリオ
- *   行高さ：13.5pt
- */
 async function outputTableToSlide(includeQuantity = false) {
   const rows = collectTableRows();
-
   if (rows.length === 0) { setResult({ text: "行がありません。" }); return; }
 
   setResult({ text: "出力中..." });
 
-  // 集計表出力時：各DOM行の上の丸（フォント色）を取得しておく
   const fontColors = includeQuantity
     ? [...document.querySelectorAll(".tableInputRow")].map((domRow) =>
         domRow.querySelector(".color-dot[data-color-type='font']")?.dataset.color ?? null
@@ -909,17 +830,13 @@ async function outputTableToSlide(includeQuantity = false) {
       const isPinBottom = !isHeader && rows[r - 1].pinBottom;
 
       return Array.from({ length: 3 }, (_, c) => {
-        // 結合エリア内の非左上セル
         if (isNoUnit && c === 2) return {};
 
         const borders = isHeader
           ? { top: noBorder, left: noBorder, right: noBorder, bottom: solidBorder }
           : { top: solidBorder, left: solidBorder, right: solidBorder, bottom: solidBorder };
 
-        // 数量列（c=1）：写真番号行以外は中央寄せ
-        const hAlign = (c === 1 && !isHeader && !isPinBottom) ? "Center" : undefined;
-
-        // 集計表出力のデータ行数量列：丸の色をフォントカラーに
+        const hAlign    = (c === 1 && !isHeader && !isPinBottom) ? "Center" : undefined;
         const fontColor = (includeQuantity && !isHeader && c === 1)
           ? (fontColors[r - 1]?.replace("#", "") ?? "000000")
           : undefined;
@@ -942,7 +859,6 @@ async function outputTableToSlide(includeQuantity = false) {
 
     await context.sync();
 
-    // specificCellProperties の horizontalAlignment が効かない環境向けの保険（API 1.9）
     try {
       const table = tableShape.getTable();
       table.load();
@@ -953,7 +869,7 @@ async function outputTableToSlide(includeQuantity = false) {
         if (!cell.isNullObject) cell.horizontalAlignment = "Center";
       }
       await context.sync();
-    } catch { /* 1.9未満の環境では無視 */ }
+    } catch { /* API 1.9未満の環境では無視 */ }
 
     setResult({ text: "スライドに出力しました" });
   });
@@ -986,8 +902,8 @@ function bindClick(elementId, handler) {
         error?.message,
         error?.code,
         error?.name,
-        error?.debugInfo  ? JSON.stringify(error.debugInfo)  : null,
-        error?.innerError ? JSON.stringify(error.innerError) : null,
+        error?.debugInfo   ? JSON.stringify(error.debugInfo)  : null,
+        error?.innerError  ? JSON.stringify(error.innerError) : null,
         error?.traceMessages?.join(" / "),
       ].filter(Boolean);
       const msg = parts.join(" | ") || String(error);
@@ -1035,19 +951,14 @@ async function sumNumbersByTextColor(targetTextColor, decimalPlaces = null) {
     const numbers = [];
     const hitIds  = [];
     for (const item of await getTextShapes(context, slide)) {
-      const coloredText = await extractTextByColor(context, item.textRange, item.text, targetTextColor);
-      const found = extractNumbers(coloredText);
+      const found = extractNumbers(await extractTextByColor(context, item.textRange, item.text, targetTextColor));
       if (found.length > 0) { numbers.push(...found); hitIds.push(item.shapeId); }
     }
 
     if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
 
-    const total     = sum(numbers);
-    // 渡された decimalPlaces より、集計した数値群の最大桁数を優先する
-    const places    = numbers.length > 0
-      ? Math.max(maxDecimalPlacesFromNumbers(numbers), decimalPlaces ?? 0)
-      : (decimalPlaces ?? 0);
-    const totalStr  = total.toFixed(Math.max(places, 0));
+    const places   = Math.max(maxDecimalPlacesFromNumbers(numbers), decimalPlaces ?? 0);
+    const totalStr = sum(numbers).toFixed(places);
     setResult({ text: totalStr, color: targetTextColor, copyValue: totalStr });
   });
 }
@@ -1057,128 +968,6 @@ async function sumNumbersBySelectedTextColor() {
   const selected = await getSelectedTextInfo();
   if (!selected.ok) { setResult({ text: selected.message }); return; }
   await sumNumbersByTextColor(selected.textColor, selected.decimalPlaces ?? null);
-}
-
-/**
- * 赤文字から「prefix + N」形式の N を集計する共通関数。
- * prefix の直後が数値のみのもの（面積形式「N×N」などはスキップ）。
- */
-async function sumPrefixNumbersFromSlide(prefix, label) {
-  setResult({ text: label + "を集計中..." });
-
-  await PowerPoint.run(async (context) => {
-    const slide = await getCurrentSlide(context);
-    if (!slide) return;
-
-    // prefix をリテラルとして扱う正規表現を動的生成
-    const pattern = new RegExp(prefix + "(\\d+(?:\\.\\d+)?)(?=[\\s\\r\\n]|$)", "g");
-
-    const numbers = [];
-    const hitIds  = [];
-    for (const item of await getTextShapes(context, slide)) {
-      const coloredText = await extractTextByColor(
-        context, item.textRange, item.text, COLORS.RED
-      );
-      // 全角数字・全角ピリオドを半角に変換してからマッチング
-      const normalized = coloredText
-        .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
-        .replace(/．/g, ".");
-      const found = [...normalized.matchAll(pattern)]
-        .map((m) => Number(m[1]))
-        .filter((n) => !isNaN(n));
-      if (found.length > 0) { numbers.push(...found); hitIds.push(item.shapeId); }
-    }
-
-    if (numbers.length === 0) {
-      setResult({ text: "0", color: COLORS.RED, copyValue: "0" });
-      return;
-    }
-
-    if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
-
-    const total    = sum(numbers);
-    const places   = maxDecimalPlacesFromNumbers(numbers);
-    const totalStr = total.toFixed(places);
-    setResult({ text: totalStr, color: COLORS.RED, copyValue: totalStr });
-  });
-}
-
-async function sumEfuroFromSlide()     { await sumPrefixNumbersFromSlide("エ", "エ"); }
-async function sumBakuretsuFromSlide() { await sumPrefixNumbersFromSlide("バ", "バ"); }
-
-/**
- * 現在のスライドの赤文字（R255,G0,B0）を全て収集して「, 」つなぎで表示する。
- */
-async function collectRedTextFromSlide() {
-  setResult({ text: "赤文字を収集中..." });
-
-  await PowerPoint.run(async (context) => {
-    const slide = await getCurrentSlide(context);
-    if (!slide) return;
-
-    const texts = [];
-    for (const item of await getTextShapes(context, slide)) {
-      const coloredText = await extractTextByColor(
-        context, item.textRange, item.text, COLORS.RED
-      );
-      // 色一致部分（スペース以外）をトークン単位で収集
-      coloredText.split(/\s+/)
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0)
-        .forEach((t) => texts.push(t));
-    }
-
-    const outputText = texts.length > 0 ? texts.join(", ") : "なし";
-    setResult({ text: outputText, color: COLORS.RED, copyValue: outputText });
-  });
-}
-
-/**
- * 選択中テキストの文字色で「0.5x1.5」形式の面積を合計する。
- * 必ず4文字目（index=3）が「x」であることを前提に前半・後半を掛け算する。
- */
-async function sumAreaBySelectedTextColor() {
-  setResult({ text: "選択中の文字色を取得中..." });
-  const selected = await getSelectedTextInfo();
-  if (!selected.ok) { setResult({ text: selected.message }); return; }
-
-  setResult({ text: "面積を集計中..." });
-
-  await PowerPoint.run(async (context) => {
-    const slide = await getCurrentSlide(context);
-    if (!slide) return;
-
-    let total = 0;
-    const hitIds = [];
-    for (const item of await getTextShapes(context, slide)) {
-      const coloredText = await extractTextByColor(
-        context, item.textRange, item.text, selected.textColor
-      );
-      const found = extractAreaValues(coloredText);
-      if (found > 0) { total += found; hitIds.push(item.shapeId); }
-    }
-
-    if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
-
-    const result    = Math.ceil(total * 100) / 100;
-    const resultStr = result.toFixed(2);
-    setResult({ text: resultStr, color: selected.textColor, copyValue: resultStr });
-  });
-}
-
-/**
- * テキストから「0.5x1.5」形式（4文字目がx）を全て抽出して掛け算し合計する。
- */
-function extractAreaValues(text) {
-  let total = 0;
-  // 4文字目（index=3）が x であるパターン：前半3文字 x 後半
-  const matches = [...text.matchAll(/(\S{3})x(\S+)/g)];
-  for (const m of matches) {
-    const a = parseFloat(m[1]);
-    const b = parseFloat(m[2]);
-    if (!isNaN(a) && !isNaN(b)) total += a * b;
-  }
-  return total;
 }
 
 async function sumNumbersBySelectedTextColorAndFillColor() {
@@ -1194,16 +983,14 @@ async function sumNumbersBySelectedTextColorAndFillColor() {
     const hitIds  = [];
     for (const item of (await getTextShapes(context, slide, { includeFillColor: true }))
         .filter((s) => s.fillColor === selected.fillColor)) {
-      const coloredText = await extractTextByColor(context, item.textRange, item.text, selected.textColor);
-      const found = extractNumbers(coloredText);
+      const found = extractNumbers(await extractTextByColor(context, item.textRange, item.text, selected.textColor));
       if (found.length > 0) { numbers.push(...found); hitIds.push(item.shapeId); }
     }
 
     if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
 
-    const total    = sum(numbers);
     const places   = maxDecimalPlacesFromNumbers(numbers);
-    const totalStr = total.toFixed(Math.max(places, 0));
+    const totalStr = sum(numbers).toFixed(places);
     setResult({ text: totalStr, color: selected.textColor, copyValue: totalStr });
   });
 }
@@ -1214,52 +1001,138 @@ async function sumNumbersByColorDirect(targetTextColor, targetFillColor) {
     if (!slide) return null;
 
     const textShapes = await getTextShapes(context, slide, { includeFillColor: !!targetFillColor });
-    const targets = targetFillColor
-      ? textShapes.filter((s) => s.fillColor === targetFillColor)
-      : textShapes;
+    const targets    = targetFillColor ? textShapes.filter((s) => s.fillColor === targetFillColor) : textShapes;
 
     const numbers = [];
     const hitIds  = [];
     for (const item of targets) {
-      const coloredText = await extractTextByColor(context, item.textRange, item.text, targetTextColor);
-      const found = extractNumbers(coloredText);
+      const found = extractNumbers(await extractTextByColor(context, item.textRange, item.text, targetTextColor));
       if (found.length > 0) { numbers.push(...found); hitIds.push(item.shapeId); }
     }
 
     if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
 
-    // total と最大小数桁数を両方返す
     return numbers.length > 0
       ? { total: sum(numbers), places: maxDecimalPlacesFromNumbers(numbers) }
       : null;
   });
 }
 
-/**
- * 指定色（フォント色 + オプションで背景色）で面積（数値x数値形式）を合計する（自動集計用）。
- */
 async function sumAreaByColorDirect(targetTextColor, targetFillColor) {
   return PowerPoint.run(async (context) => {
     const slide = await getCurrentSlide(context);
     if (!slide) return null;
 
     const textShapes = await getTextShapes(context, slide, { includeFillColor: !!targetFillColor });
-    const targets = targetFillColor
-      ? textShapes.filter((s) => s.fillColor === targetFillColor)
-      : textShapes;
+    const targets    = targetFillColor ? textShapes.filter((s) => s.fillColor === targetFillColor) : textShapes;
 
     let total = 0;
     for (const item of targets) {
-      const coloredText = await extractTextByColor(context, item.textRange, item.text, targetTextColor);
-      total += extractAreaValues(coloredText);
+      total += extractAreaValues(await extractTextByColor(context, item.textRange, item.text, targetTextColor));
     }
     return total;
   });
 }
 
 /**
- * A-1形式コードをスライドから収集してアルファベット別に連番圧縮する。
- * formatCodesByTextColor・collectPhotoCodesFromSlide の共通ロジック。
+ * 赤文字から「prefix + N」形式の N を集計する共通ロジック（context内で使用）。
+ */
+async function collectPrefixNumbers(context, slide, prefix) {
+  const pattern = new RegExp(prefix + "(\\d+(?:\\.\\d+)?)(?=[\\s\\r\\n]|$)", "g");
+  const numbers = [];
+  const hitIds  = [];
+  for (const item of await getTextShapes(context, slide)) {
+    const normalized = (await extractTextByColor(context, item.textRange, item.text, COLORS.RED))
+      .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+      .replace(/．/g, ".");
+    const found = [...normalized.matchAll(pattern)]
+      .map((m) => Number(m[1]))
+      .filter((n) => !isNaN(n));
+    if (found.length > 0) { numbers.push(...found); hitIds.push(item.shapeId); }
+  }
+  return { numbers, hitIds };
+}
+
+async function sumPrefixNumbersFromSlide(prefix, label) {
+  setResult({ text: label + "を集計中..." });
+
+  await PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return;
+
+    const { numbers, hitIds } = await collectPrefixNumbers(context, slide, prefix);
+
+    if (numbers.length === 0) {
+      setResult({ text: "0", color: COLORS.RED, copyValue: "0" });
+      return;
+    }
+
+    if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
+
+    const totalStr = sum(numbers).toFixed(maxDecimalPlacesFromNumbers(numbers));
+    setResult({ text: totalStr, color: COLORS.RED, copyValue: totalStr });
+  });
+}
+
+async function sumEfuroFromSlide()     { await sumPrefixNumbersFromSlide("エ", "エ"); }
+async function sumBakuretsuFromSlide() { await sumPrefixNumbersFromSlide("バ", "バ"); }
+
+async function collectRedTextFromSlide() {
+  setResult({ text: "赤文字を収集中..." });
+
+  await PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return;
+
+    const texts = [];
+    for (const item of await getTextShapes(context, slide)) {
+      const coloredText = await extractTextByColor(context, item.textRange, item.text, COLORS.RED);
+      coloredText.split(/\s+/).map((t) => t.trim()).filter((t) => t.length > 0)
+        .forEach((t) => texts.push(t));
+    }
+
+    const outputText = texts.length > 0 ? texts.join(", ") : "なし";
+    setResult({ text: outputText, color: COLORS.RED, copyValue: outputText });
+  });
+}
+
+async function sumAreaBySelectedTextColor() {
+  setResult({ text: "選択中の文字色を取得中..." });
+  const selected = await getSelectedTextInfo();
+  if (!selected.ok) { setResult({ text: selected.message }); return; }
+
+  setResult({ text: "面積を集計中..." });
+
+  await PowerPoint.run(async (context) => {
+    const slide = await getCurrentSlide(context);
+    if (!slide) return;
+
+    let total = 0;
+    const hitIds = [];
+    for (const item of await getTextShapes(context, slide)) {
+      const found = extractAreaValues(await extractTextByColor(context, item.textRange, item.text, selected.textColor));
+      if (found > 0) { total += found; hitIds.push(item.shapeId); }
+    }
+
+    if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
+
+    const resultStr = (Math.ceil(total * 100) / 100).toFixed(2);
+    setResult({ text: resultStr, color: selected.textColor, copyValue: resultStr });
+  });
+}
+
+function extractAreaValues(text) {
+  let total = 0;
+  for (const m of text.matchAll(/(\S{3})x(\S+)/g)) {
+    const a = parseFloat(m[1]);
+    const b = parseFloat(m[2]);
+    if (!isNaN(a) && !isNaN(b)) total += a * b;
+  }
+  return total;
+}
+
+/**
+ * A-1形式コードをスライドから収集してアルファベット別に連番圧縮する共通ロジック。
  */
 async function collectGroupedCodes(context, slides, targetTextColor) {
   const grouped = {};
@@ -1305,9 +1178,9 @@ async function formatCodesByTextColor(targetTextColor, allSlides = false) {
 async function collectPhotoCodesFromSlide() {
   return PowerPoint.run(async (context) => {
     const slide = await getCurrentSlide(context);
-    if (!slide) return "";
+    if (!slide) return "なし";
     const outputLines = await collectGroupedCodes(context, [slide], COLORS.BLACK);
-    return outputLines.join("\n");
+    return outputLines.length > 0 ? outputLines.join("\n") : "なし";
   });
 }
 
@@ -1328,11 +1201,7 @@ async function loadSelectedTextRange(context) {
     return { ok: false, message: "選択中テキストの文字色を取得できませんでした。1色の文字だけを選択してください。" };
   }
 
-  // 選択テキストの小数桁数を取得（例: "1.50" → 2, "3" → 0）
-  const selectedText = selectedTextRange.text.trim();
-  const decimalPlaces = getDecimalPlaces(selectedText);
-
-  return { ok: true, textColor, decimalPlaces };
+  return { ok: true, textColor, decimalPlaces: getDecimalPlaces(selectedTextRange.text.trim()) };
 }
 
 async function getSelectedTextInfo() {
@@ -1411,7 +1280,6 @@ async function getTextShapes(context, slide, options = {}) {
   }
   await context.sync();
 
-  // shapeId を事前にロード
   textShapes.forEach((item) => item.shape.load("id"));
   await context.sync();
 
@@ -1453,49 +1321,28 @@ async function getShapeFillColor(context, shape) {
 
 // ─── テキスト処理ユーティリティ ───────────────────────────
 
-/**
- * テキストから小数桁数を取得する。
- * 数値に変換できるテキストの小数点以下の桁数を返す。
- * 変換できない場合は null を返す。
- */
 function getDecimalPlaces(text) {
   const trimmed = text.trim();
-  const num = Number(trimmed);
-  if (isNaN(num)) return null;
+  if (isNaN(Number(trimmed))) return null;
   const dotIndex = trimmed.indexOf(".");
-  if (dotIndex === -1) return 0;
-  return trimmed.length - dotIndex - 1;
+  return dotIndex === -1 ? 0 : trimmed.length - dotIndex - 1;
 }
 
-/**
- * 数値の配列から最大の小数桁数を返す。
- * 例: [1.5, 2.10, 3] → 2（"2.10" を文字列化すると "2.1" になるため実際は1だが、
- * extractNumbers は Number() 変換後なので末尾ゼロは失われる。
- * そのためスライド上の生テキストから直接拾う必要がある。
- * ここでは集計後の合計値の整形用に、numbers の各値の桁数の最大を返す。
- */
 function maxDecimalPlacesFromNumbers(numbers) {
   return numbers.reduce((max, n) => {
-    const s = String(n);
+    const s   = String(n);
     const dot = s.indexOf(".");
-    const places = dot === -1 ? 0 : s.length - dot - 1;
-    return Math.max(max, places);
+    return Math.max(max, dot === -1 ? 0 : s.length - dot - 1);
   }, 0);
 }
 
 function extractNumbers(text) {
-  // 面積形式（数値x数値）を先に除去
+  // 面積形式（数値x数値）を先に除去してから行単位で評価する
   const cleaned = text.replace(/\d+(?:\.\d+)?\s*[xX]\s*\d+(?:\.\d+)?/g, " ");
-
-  // 行単位で評価する。
-  // 「シール割れ 0.8」のように数字とピリオド以外の文字（日本語など）が
-  // 同じ行に含まれる場合はその行全体を除外する。
-  // ※ extractTextByColor は色違い文字をスペースに置換するため、
-  //   対象色の数値だけが残った行は「  0.8  」のように数字・スペースのみになる。
   return cleaned.split(/[\r\n]+/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
-    .filter((line) => /^[\d.\s\-+]+$/.test(line))  // 数字・ピリオド・スペース・符号のみの行だけ通す
+    .filter((line) => /^[\d.\s\-+]+$/.test(line))
     .flatMap((line) =>
       line.split(/\s+/)
         .filter((t) => t.length > 0)
@@ -1514,40 +1361,31 @@ function extractLetterCodes(text) {
 function compressNumberRanges(numbers) {
   if (!numbers?.length) return "";
 
-  // 重複はそのまま保持してソート
   const sorted = [...numbers].sort((a, b) => a - b);
   const ranges = [];
   let i = 0;
 
   while (i < sorted.length) {
-    // 重複している値は1つずつ個別出力
     if (i + 1 < sorted.length && sorted[i] === sorted[i + 1]) {
       ranges.push(String(sorted[i]));
       i++;
       continue;
     }
-    // 重複なし：連番を探して圧縮
-    // ただし次が重複値（sorted[i+1] === sorted[i+2]）の場合はここでは連番に含めない
     let start = sorted[i];
     let prev  = sorted[i];
     while (
       i + 1 < sorted.length &&
       sorted[i + 1] === prev + 1 &&
-      // 次の値が更にその次と同じ（重複）なら連番に含めず止める
       sorted[i + 1] !== sorted[i + 2]
     ) {
       i++;
       prev = sorted[i];
     }
-    ranges.push(formatRange(start, prev));
+    ranges.push(start === prev ? String(start) : `${start}~${prev}`);
     i++;
   }
 
   return ranges.join(", ");
-}
-
-function formatRange(start, end) {
-  return start === end ? String(start) : `${start}~${end}`;
 }
 
 function sum(numbers) {
@@ -1572,8 +1410,8 @@ function escapeHtml(value) {
 function setResult({ text, html, color = null, copyValue = null }) {
   const el = document.getElementById(UI.result);
   if (el) {
-    if (html !== undefined) { el.innerHTML = html; }
-    else                    { el.textContent = text ?? ""; }
+    if (html !== undefined) el.innerHTML = html;
+    else                    el.textContent = text ?? "";
     el.style.color = color ?? "";
   }
 
