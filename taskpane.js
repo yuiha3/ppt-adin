@@ -590,29 +590,14 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
   const fillColor = domRow?.querySelector(".color-dot[data-color-type='fill']")?.dataset.color ?? null;
   const showDots  = !rowData.noUnit;
 
+  // ── カード全体 ──────────────────────────────────
   const rowEl = document.createElement("div");
   rowEl.className = "autosum-row";
   rowEl.dataset.rowIndex = String(index);
 
-  const dots = document.createElement("div");
-  dots.className = showDots ? "autosum-dots" : "autosum-dots autosum-dots--hidden";
-
-  const makeDotWithSync = (type, color) =>
-    makeColorDot(type, color, showDots ? () => {
-      openColorPicker(dots.querySelector(`[data-color-type='${type}']`), type, (selected) => {
-        // 元DOM行の丸にも反映
-        const target = domRow?.querySelector(`.color-dot[data-color-type='${type}']`);
-        if (target) { target.style.background = selected; target.dataset.color = selected; }
-        // テキスト表示を更新
-        const contentEl = rowEl.querySelector(".autosum-content");
-        if (contentEl) {
-          if (type === "font") contentEl.style.color = selected;
-          else contentEl.style.background = selected;
-        }
-      });
-    } : null);
-
-  dots.append(makeDotWithSync("font", fontColor), makeDotWithSync("fill", fillColor));
+  // ── 1行目：項目名 ＋ 削除ボタン ─────────────────
+  const header = document.createElement("div");
+  header.className = "autosum-row__header";
 
   const content = Object.assign(document.createElement("span"), {
     className: "autosum-content", textContent: rowData.content
@@ -620,21 +605,79 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
   if (fontColor) content.style.color = fontColor;
   if (fillColor) content.style.background = fillColor;
 
-  // 面積チェックボックス（noUnit行は非表示）
-  const areaLabel = document.createElement("label");
-  areaLabel.className = showDots ? "autosum-area-check" : "autosum-area-check autosum-area-check--hidden";
-  areaLabel.title = "面積として計算する";
-  const areaCheckbox = document.createElement("input");
-  areaCheckbox.type = "checkbox";
-  areaCheckbox.className = "autosum-area-checkbox";
-  areaLabel.appendChild(areaCheckbox);
-
   const delBtn = Object.assign(document.createElement("button"), {
     type: "button", className: "autosum-delete-btn", textContent: "×"
   });
   delBtn.addEventListener("click", () => rowEl.remove());
 
-  rowEl.append(dots, content, areaLabel, delBtn);
+  header.append(content, delBtn);
+  rowEl.appendChild(header);
+
+  if (!showDots) return rowEl;  // noUnit行（その他・写真番号）はここで終了
+
+  // ── 2行目：文字色・背景色の丸ボタン ──────────────
+  const colorRow = document.createElement("div");
+  colorRow.className = "autosum-row__colors";
+
+  const makeDotItem = (type, color, label) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "autosum-dot-item";
+
+    const dot = makeColorDot(type, color, () => {
+      openColorPicker(dot, type, (selected) => {
+        // 元DOM行の丸にも反映
+        const target = domRow?.querySelector(`.color-dot[data-color-type='${type}']`);
+        if (target) { target.style.background = selected; target.dataset.color = selected; }
+        // 項目名の表示色を更新
+        if (type === "font") content.style.color = selected;
+        else                 content.style.background = selected;
+      });
+    });
+
+    const lbl = Object.assign(document.createElement("span"), {
+      className: "autosum-dot-label", textContent: label
+    });
+
+    wrapper.append(dot, lbl);
+    return wrapper;
+  };
+
+  colorRow.append(
+    makeDotItem("font", fontColor, "文字色"),
+    makeDotItem("fill", fillColor, "背景色")
+  );
+  rowEl.appendChild(colorRow);
+
+  // ── 3行目：行の内容に応じてチェックボックスを切り替え ──
+  const checkRow = document.createElement("div");
+  checkRow.className = "autosum-row__checks";
+
+  const makeCheck = (className, labelText) => {
+    const label = document.createElement("label");
+    label.className = "autosum-check-item";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = className;
+    const lbl = Object.assign(document.createElement("span"), {
+      className: "autosum-area-label", textContent: labelText
+    });
+    label.append(cb, lbl);
+    return label;
+  };
+
+  // 「爆裂」「エフロ」を含む行は専用チェックのみ、それ以外は面積計算チェックのみ
+  const isBaRow    = rowData.content.includes("爆裂");
+  const isEfuroRow = rowData.content.includes("エフロ");
+  if (isBaRow) {
+    checkRow.append(makeCheck("autosum-ba-checkbox", "バを集計"));
+  } else if (isEfuroRow) {
+    checkRow.append(makeCheck("autosum-efuro-checkbox", "エを集計"));
+  } else {
+    checkRow.append(makeCheck("autosum-area-checkbox", "面積計算"));
+  }
+
+  rowEl.appendChild(checkRow);
+
   return rowEl;
 }
 
@@ -663,9 +706,11 @@ async function runAutoSum(activePopupRows, tableRowEls) {
       continue;
     }
 
-    const fontColor  = popupRow.querySelector(".color-dot[data-color-type='font']")?.dataset.color ?? null;
-    const fillColor  = popupRow.querySelector(".color-dot[data-color-type='fill']")?.dataset.color ?? null;
-    const isAreaMode = popupRow.querySelector(".autosum-area-checkbox")?.checked ?? false;
+    const fontColor   = popupRow.querySelector(".color-dot[data-color-type='font']")?.dataset.color ?? null;
+    const fillColor   = popupRow.querySelector(".color-dot[data-color-type='fill']")?.dataset.color ?? null;
+    const isAreaMode  = popupRow.querySelector(".autosum-area-checkbox")?.checked  ?? false;
+    const isBaMode    = popupRow.querySelector(".autosum-ba-checkbox")?.checked    ?? false;
+    const isEfuroMode = popupRow.querySelector(".autosum-efuro-checkbox")?.checked ?? false;
     if (!fontColor) continue;
 
     try {
@@ -675,6 +720,16 @@ async function runAutoSum(activePopupRows, tableRowEls) {
           const rounded = Math.ceil(result * 100) / 100;
           quantityInput.value = rounded.toFixed(2);
         }
+      } else if (isBaMode || isEfuroMode) {
+        const prefix = isBaMode ? "バ" : "エ";
+        await PowerPoint.run(async (context) => {
+          const slide = await getCurrentSlide(context);
+          if (!slide) return;
+          const { numbers } = await collectPrefixNumbers(context, slide, prefix);
+          if (numbers.length > 0) {
+            quantityInput.value = sum(numbers).toFixed(maxDecimalPlacesFromNumbers(numbers));
+          }
+        });
       } else {
         const result = await sumNumbersByColorDirect(fontColor, fillColor);
         if (result !== null) {
