@@ -423,7 +423,6 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
   tableRows.insertBefore(row, anchor);
 
   setupDragAndDrop(row, tableRows);
-  quantityEl.focus();
 }
 
 // ─── ドラッグ&ドロップ ────────────────────────────────────
@@ -615,38 +614,42 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
 
   if (!showDots) return rowEl;  // noUnit行（その他・写真番号）はここで終了
 
-  // ── 2行目：文字色・背景色の丸ボタン ──────────────
-  const colorRow = document.createElement("div");
-  colorRow.className = "autosum-row__colors";
+  // ── 2行目：文字色・背景色の丸ボタン（爆裂・エフロ行は不要のため非表示）──
+  const isBaRow    = rowData.content.includes("爆裂");
+  const isEfuroRow = rowData.content.includes("エフロ");
+  const showColorRow = !isBaRow && !isEfuroRow;
 
-  const makeDotItem = (type, color, label) => {
-    const wrapper = document.createElement("div");
-    wrapper.className = "autosum-dot-item";
+  if (showColorRow) {
+    const colorRow = document.createElement("div");
+    colorRow.className = "autosum-row__colors";
 
-    const dot = makeColorDot(type, color, () => {
-      openColorPicker(dot, type, (selected) => {
-        // 元DOM行の丸にも反映
-        const target = domRow?.querySelector(`.color-dot[data-color-type='${type}']`);
-        if (target) { target.style.background = selected; target.dataset.color = selected; }
-        // 項目名の表示色を更新
-        if (type === "font") content.style.color = selected;
-        else                 content.style.background = selected;
+    const makeDotItem = (type, color, label) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "autosum-dot-item";
+
+      const dot = makeColorDot(type, color, () => {
+        openColorPicker(dot, type, (selected) => {
+          const target = domRow?.querySelector(`.color-dot[data-color-type='${type}']`);
+          if (target) { target.style.background = selected; target.dataset.color = selected; }
+          if (type === "font") content.style.color = selected;
+          else                 content.style.background = selected;
+        });
       });
-    });
 
-    const lbl = Object.assign(document.createElement("span"), {
-      className: "autosum-dot-label", textContent: label
-    });
+      const lbl = Object.assign(document.createElement("span"), {
+        className: "autosum-dot-label", textContent: label
+      });
 
-    wrapper.append(dot, lbl);
-    return wrapper;
-  };
+      wrapper.append(dot, lbl);
+      return wrapper;
+    };
 
-  colorRow.append(
-    makeDotItem("font", fontColor, "文字色"),
-    makeDotItem("fill", fillColor, "背景色")
-  );
-  rowEl.appendChild(colorRow);
+    colorRow.append(
+      makeDotItem("font", fontColor, "文字色"),
+      makeDotItem("fill", fillColor, "背景色")
+    );
+    rowEl.appendChild(colorRow);
+  }
 
   // ── 3行目：行の内容に応じてチェックボックスを切り替え ──
   const checkRow = document.createElement("div");
@@ -666,8 +669,6 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
   };
 
   // 「爆裂」「エフロ」を含む行は専用チェックのみ、それ以外は面積計算チェックのみ
-  const isBaRow    = rowData.content.includes("爆裂");
-  const isEfuroRow = rowData.content.includes("エフロ");
   if (isBaRow) {
     checkRow.append(makeCheck("autosum-ba-checkbox", "バを集計"));
   } else if (isEfuroRow) {
@@ -1046,7 +1047,7 @@ async function sumNumbersByTextColor(targetTextColor, decimalPlaces = null) {
     const places    = numbers.length > 0
       ? Math.max(maxDecimalPlacesFromNumbers(numbers), decimalPlaces ?? 0)
       : (decimalPlaces ?? 0);
-    const totalStr  = numbers.length > 0 ? total.toFixed(places) : String(total);
+    const totalStr  = total.toFixed(Math.max(places, 0));
     setResult({ text: totalStr, color: targetTextColor, copyValue: totalStr });
   });
 }
@@ -1089,7 +1090,7 @@ async function sumPrefixNumbersFromSlide(prefix, label) {
     }
 
     if (numbers.length === 0) {
-      setResult({ text: "該当なし", color: COLORS.RED });
+      setResult({ text: "0", color: COLORS.RED, copyValue: "0" });
       return;
     }
 
@@ -1127,7 +1128,7 @@ async function collectRedTextFromSlide() {
         .forEach((t) => texts.push(t));
     }
 
-    const outputText = texts.length > 0 ? texts.join(", ") : "該当なし";
+    const outputText = texts.length > 0 ? texts.join(", ") : "なし";
     setResult({ text: outputText, color: COLORS.RED, copyValue: outputText });
   });
 }
@@ -1202,7 +1203,7 @@ async function sumNumbersBySelectedTextColorAndFillColor() {
 
     const total    = sum(numbers);
     const places   = maxDecimalPlacesFromNumbers(numbers);
-    const totalStr = numbers.length > 0 ? total.toFixed(places) : String(total);
+    const totalStr = total.toFixed(Math.max(places, 0));
     setResult({ text: totalStr, color: selected.textColor, copyValue: totalStr });
   });
 }
@@ -1291,7 +1292,7 @@ async function formatCodesByTextColor(targetTextColor, allSlides = false) {
     }
 
     const outputLines = await collectGroupedCodes(context, slides, targetTextColor);
-    const outputText  = outputLines.length > 0 ? outputLines.join("\n") : "該当なし";
+    const outputText  = outputLines.length > 0 ? outputLines.join("\n") : "なし";
 
     setResult({
       html:      `<pre class="outputText" style="color:${targetTextColor}">${escapeHtml(outputText)}</pre>`,
