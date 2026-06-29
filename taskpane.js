@@ -717,9 +717,11 @@ async function openColorPicker(dotEl, colorType, onSelect = null) {
     popup.appendChild(grid);
   }
 
-  popup.append(Object.assign(document.createElement("button"), {
+  const closeBtn = Object.assign(document.createElement("button"), {
     type: "button", className: "color-picker-close", textContent: "閉じる"
-  })).addEventListener("click", closeColorPicker);
+  });
+  closeBtn.addEventListener("click", closeColorPicker);
+  popup.appendChild(closeBtn);
 
   document.body.appendChild(popup);
   const rect = dotEl.getBoundingClientRect();
