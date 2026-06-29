@@ -36,8 +36,8 @@ const DEFECT_GROUPS = [
   {
     label: "その他",
     items: [
-      { content: "エフロ",     unit: "箇所" },
-      { content: "爆裂",       unit: "箇所" },
+      { content: "エフロ",     unit: "箇所", prefixKey: "efuro" },
+      { content: "爆裂",       unit: "箇所", prefixKey: "ba" },
       { content: "サビ",       unit: "箇所" },
       { content: "目地欠損",   unit: "箇所" },
       { content: "シール劣化", unit: "箇所" },
@@ -341,7 +341,7 @@ function makeColorDot(type, color = null, onClick = null) {
   return d;
 }
 
-function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
+function addTableRow({ content, unit, noUnit = false, pinBottom = false, prefixKey = null }) {
   const tableRows = document.getElementById("tableRows");
   if (!tableRows) return;
 
@@ -349,14 +349,14 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
   row.className = noUnit ? "tableInputRow noUnitRow" : "tableInputRow";
   row.draggable = true;
   if (pinBottom) row.dataset.pinBottom = "true";
+  if (prefixKey)  row.dataset.prefixKey  = prefixKey;
 
   const handleCol = document.createElement("div");
   handleCol.className = "handle-col";
   if (noUnit) handleCol.classList.add("handle-col--hidden");
 
-  // エフロ・爆裂行は文字色（font）を赤で固定
-  const isRedRow = content.includes("エフロ") || content.includes("爆裂");
-  const initFontColor = isRedRow ? COLORS.RED : null;
+  // prefixKey が設定されている行（エフロ・爆裂）は文字色を赤で固定
+  const initFontColor = prefixKey ? COLORS.RED : null;
 
   handleCol.append(
     makeColorDot("font", initFontColor, (e) => openColorPicker(e.currentTarget, "font")),
@@ -571,9 +571,9 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
   // noUnit行（その他・写真番号）は項目名+削除ボタンのみ
   if (rowData.noUnit) return rowEl;
 
-  // 爆裂・エフロ行は文字色・背景色不要
-  const isBaRow    = rowData.content.includes("爆裂");
-  const isEfuroRow = rowData.content.includes("エフロ");
+  // prefixKey で爆裂（ba）・エフロ（efuro）を判定
+  const isBaRow    = rowData.prefixKey === "ba";
+  const isEfuroRow = rowData.prefixKey === "efuro";
 
   if (!isBaRow && !isEfuroRow) {
     // 2行目：文字色・背景色の丸ボタン
@@ -660,6 +660,12 @@ async function runAutoSum(activePopupRows, tableRowEls) {
     if (domRow?.dataset.pinBottom === "true") {
       try { quantityInput.value = await collectPhotoCodesFromSlide(); }
       catch (e) { console.error("写真番号集計エラー:", e); }
+      continue;
+    }
+
+    // その他行（noUnit かつ pinBottom でない）：入力済みはスキップ、空は「なし」
+    if (domRow?.classList.contains("noUnitRow")) {
+      if (!quantityInput.value.trim()) quantityInput.value = "なし";
       continue;
     }
 
@@ -906,7 +912,8 @@ function collectTableRows() {
     const content   = inputs[0]?.value ?? "";
     const quantity  = inputs[1]?.value ?? "";
     const unit      = noUnit ? "" : (inputs[2]?.value ?? "");
-    return { content, quantity, unit, noUnit, pinBottom };
+    const prefixKey = row.dataset.prefixKey ?? null;
+    return { content, quantity, unit, noUnit, pinBottom, prefixKey };
   }).filter((r) => r.content || r.quantity);
 }
 
