@@ -97,13 +97,15 @@ function initializePdfImport() {
   insertBtn.addEventListener("click", insertPdfToSlides);
 }
 
-function showPdfStatus(message, type = "info") {
-  const el = document.getElementById("pdfStatus");
+function showStatus(elementId, baseClass, message, type = "info") {
+  const el = document.getElementById(elementId);
   if (!el) return;
-  el.textContent = message;
-  el.className   = `pdf-status pdf-status--${type}`;
+  el.textContent   = message;
+  el.className     = `${baseClass} ${baseClass}--${type}`;
   el.style.display = "block";
 }
+const showPdfStatus     = (msg, type) => showStatus("pdfStatus",            "pdf-status",              msg, type);
+const showSummaryStatus = (msg, type) => showStatus("summaryCollectStatus", "summary-collect-status",  msg, type);
 
 async function loadPdf(file) {
   showPdfStatus("PDFを読み込んでいます...", "info");
@@ -245,6 +247,8 @@ function initializeSummaryButtons() {
   bindClick("collectRedTextButton",             collectRedTextFromSlide);
   bindClick("sumEfuroButton",                   sumEfuroFromSlide);
   bindClick("sumBakuretsuButton",               sumBakuretsuFromSlide);
+
+  bindClick("collectSummaryButton", collectSummaryTables);
 
   const copyBtn = document.getElementById(UI.copyButton);
   if (!copyBtn) return;
@@ -1104,6 +1108,241 @@ async function sumPrefixNumbersFromSlide(prefix, label) {
 async function sumEfuroFromSlide()     { await sumPrefixNumbersFromSlide("エ", "エ"); }
 async function sumBakuretsuFromSlide() { await sumPrefixNumbersFromSlide("バ", "バ"); }
 
+// ─── 集計まとめ ──────────────────────────────────────────
+
+/**
+ * 全スライドから「＜集計＞」表を収集してアドイン内に一覧表示する。
+ * 項目列が全スライドで一致している場合のみ表示する。
+ */
+async function collectSummaryTables() {
+  showSummaryStatus("収集中...", "info");
+  document.getElementById("summaryCollectTableWrap").innerHTML = "";
+
+  await PowerPoint.run(async (context) => {
+    // ── ① 全スライドの図形タイプを一括ロード ──────────────
+    const allSlides = context.presentation.slides;
+    allSlides.load("items");
+    await context.sync();
+
+    allSlides.items.forEach((slide) => slide.shapes.load("items/type"));
+    await context.sync();
+
+    // ── ② 各スライドから集計表（＜集計＞）を特定 ──────────
+    // テーブル図形を抽出してrowCount・columnCountをロード
+    const tableShapes = []; // { slide, slideIndex, shape }
+    for (let si = 0; si < allSlides.items.length; si++) {
+      const slide = allSlides.items[si];
+      for (const shape of slide.shapes.items) {
+        if (shape.type === PowerPoint.ShapeType.table) {
+          const table = shape.getTable();
+          table.load("rowCount,columnCount");
+          tableShapes.push({ slideIndex: si, table });
+        }
+      }
+    }
+    await context.sync();
+
+    // ── ③ 1行目0列目が「＜集計＞」の表を対象に全セルtextをロード ──
+    const candidates = [];
+
+    for (const { slideIndex, table } of tableShapes) {
+      if (table.rowCount < 2 || table.columnCount < 1) continue;
+      const firstCell = table.getCellOrNullObject(0, 0);
+      firstCell.load("text");
+      candidates.push({ slideIndex, table, firstCell });
+    }
+    await context.sync();
+
+    // ＜集計＞のものだけに絞って全セルをロード
+    const targetTables = [];
+    for (const { slideIndex, table, firstCell } of candidates) {
+      if (firstCell.isNullObject || firstCell.text.trim() !== "＜集計＞") continue;
+      const cells = [];
+      for (let r = 0; r < table.rowCount; r++) {
+        const row = [];
+        for (let c = 0; c < table.columnCount; c++) {
+          const cell = table.getCellOrNullObject(r, c);
+          cell.load("text");
+          row.push(cell);
+        }
+        cells.push(row);
+      }
+      targetTables.push({ slideIndex, table, cells });
+    }
+    await context.sync();
+
+    if (targetTables.length === 0) {
+      showSummaryStatus("＜集計＞表が見つかりませんでした。", "error");
+      return;
+    }
+
+    // ── ④ セルテキストを2次元配列に変換 ──────────────────
+    const slideData = targetTables.map(({ slideIndex, cells }) => ({
+      slideIndex,
+      slideName: `スライド${slideIndex + 1}`,
+      rows: cells.map((row) => row.map((cell) => (cell.isNullObject ? "" : cell.text ?? "")))
+    }));
+
+    // ── ⑤ 項目列の一致チェック ───────────────────────────
+    // 各スライドの項目列（r>=1, c=0）を抽出
+    const itemLists = slideData.map(({ rows }) =>
+      rows.slice(1).map((row) => row[0] ?? "")
+    );
+
+    // 全スライドの項目リストが完全一致するか確認
+    const baseItems = itemLists[0];
+    const allMatch = itemLists.every(
+      (items) => items.length === baseItems.length &&
+                 items.every((item, i) => item === baseItems[i])
+    );
+
+    if (!allMatch) {
+      showSummaryStatus(
+        "スライド間で項目の順番または内容が一致しないため表示できません。",
+        "error"
+      );
+      return;
+    }
+
+    // ── ⑥ アドイン内に3ブロックに分けて表示 ───────────
+    renderSummaryAll(baseItems, slideData);
+    showSummaryStatus(
+      `${slideData.length}枚のスライドから${baseItems.length}件の項目を収集しました。`,
+      "success"
+    );
+  });
+}
+
+/**
+ * 3ブロックに分けて描画する。
+ * - 通常項目：横スクロール表
+ * - その他：横スクロール表
+ * - 写真番号：各スライドの値 + コピーボタン
+ */
+function renderSummaryAll(baseItems, slideData) {
+  const wrap = document.getElementById("summaryCollectTableWrap");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  // 元のインデックスを保持したまま1回のループで3種類に分類
+  const normalEntries = [], otherEntries = [], photoEntries = [];
+  baseItems.forEach((name, originalIndex) => {
+    const entry = { name, originalIndex };
+    if      (name === "写真番号") photoEntries.push(entry);
+    else if (name === "その他")   otherEntries.push(entry);
+    else                          normalEntries.push(entry);
+  });
+
+  // 各スライドの指定インデックスの値を取得するヘルパー
+  // rows[0] = ヘッダー行、rows[originalIndex + 1] = データ行
+  const getValue = (rows, originalIndex) => rows[originalIndex + 1]?.[1] ?? "";
+
+  // ── 通常項目ブロック ──────────────────────────────────
+  if (normalEntries.length > 0) {
+    wrap.appendChild(makeSectionLabel("集計結果"));
+    wrap.appendChild(buildSummaryTable(normalEntries, slideData, getValue));
+  }
+
+  // ── その他ブロック ────────────────────────────────────
+  if (otherEntries.length > 0) {
+    wrap.appendChild(makeSectionLabel("その他"));
+    wrap.appendChild(buildSummaryTable(otherEntries, slideData, getValue));
+  }
+
+  // ── 写真番号ブロック ──────────────────────────────────
+  if (photoEntries.length > 0) {
+    wrap.appendChild(makeSectionLabel("写真番号"));
+    const photoWrap = document.createElement("div");
+    photoWrap.className = "summary-photo-list";
+
+    slideData.forEach(({ slideName, rows }) => {
+      photoEntries.forEach(({ originalIndex }) => {
+        const value = getValue(rows, originalIndex);
+        const row = document.createElement("div");
+        row.className = "summary-photo-row";
+
+        row.appendChild(Object.assign(document.createElement("span"), {
+          className: "summary-photo-slide", textContent: slideName + "："
+        }));
+        row.appendChild(Object.assign(document.createElement("span"), {
+          className: "summary-photo-value", textContent: value || "なし"
+        }));
+
+        const copyBtn = Object.assign(document.createElement("button"), {
+          type: "button", className: "summary-photo-copy", textContent: "コピー"
+        });
+        copyBtn.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(value);
+            copyBtn.textContent = "✓ コピー済";
+            setTimeout(() => { copyBtn.textContent = "コピー"; }, 1500);
+          } catch {
+            copyBtn.textContent = "失敗";
+            setTimeout(() => { copyBtn.textContent = "コピー"; }, 1500);
+          }
+        });
+
+        row.appendChild(copyBtn);
+        photoWrap.appendChild(row);
+      });
+    });
+
+    wrap.appendChild(photoWrap);
+  }
+}
+
+/**
+ * 横スクロール対応の集計表を生成して返す。
+ */
+function buildSummaryTable(entries, slideData, getValue) {
+  const tableWrap = document.createElement("div");
+  tableWrap.className = "summary-collect-wrap";
+
+  const table = document.createElement("table");
+  table.className = "summary-collect-table";
+
+  // ヘッダー行
+  const thead = document.createElement("thead");
+  const hRow  = document.createElement("tr");
+  hRow.appendChild(Object.assign(document.createElement("th"), {
+    className: "summary-th summary-th--sticky", textContent: "項目"
+  }));
+  slideData.forEach(({ slideName }) => {
+    hRow.appendChild(Object.assign(document.createElement("th"), {
+      className: "summary-th", textContent: slideName
+    }));
+  });
+  thead.appendChild(hRow);
+  table.appendChild(thead);
+
+  // データ行
+  const tbody = document.createElement("tbody");
+  entries.forEach(({ name, originalIndex }) => {
+    const tr = document.createElement("tr");
+    tr.appendChild(Object.assign(document.createElement("td"), {
+      className: "summary-td summary-td--sticky", textContent: name
+    }));
+    slideData.forEach(({ rows }) => {
+      tr.appendChild(Object.assign(document.createElement("td"), {
+        className: "summary-td summary-td--value",
+        textContent: getValue(rows, originalIndex)
+      }));
+    });
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  tableWrap.appendChild(table);
+  return tableWrap;
+}
+
+function makeSectionLabel(text) {
+  const el = Object.assign(document.createElement("p"), {
+    className: "section-label summary-section-label", textContent: text
+  });
+  return el;
+}
+
 async function collectRedTextFromSlide() {
   setResult({ text: "赤文字を収集中..." });
 
@@ -1114,8 +1353,7 @@ async function collectRedTextFromSlide() {
     const texts = [];
     for (const item of await getTextShapes(context, slide)) {
       const coloredText = await extractTextByColor(context, item.textRange, item.text, COLORS.RED);
-      coloredText.split(/\s+/).map((t) => t.trim()).filter((t) => t.length > 0)
-        .forEach((t) => texts.push(t));
+      coloredText.split(/\s+/).filter(Boolean).forEach((t) => texts.push(t));
     }
 
     const outputText = texts.length > 0 ? texts.join(", ") : "なし";
@@ -1303,11 +1541,9 @@ async function getTextShapes(context, slide, options = {}) {
     if (item.textFrame.isNullObject || !item.textFrame.hasText) continue;
     const textRange = item.textFrame.textRange;
     textRange.load("text");
+    item.shape.load("id");
     textShapes.push({ ...item, textRange });
   }
-  await context.sync();
-
-  textShapes.forEach((item) => item.shape.load("id"));
   await context.sync();
 
   for (const item of textShapes) {

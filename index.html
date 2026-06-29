@@ -23,6 +23,9 @@
       <button id="summaryTabButton" class="tabButton" type="button" data-tab-target="summaryTab">
         集計
       </button>
+      <button id="summaryCollectTabButton" class="tabButton" type="button" data-tab-target="summaryCollectTab">
+        集計まとめ
+      </button>
       <button id="tableTabButton" class="tabButton" type="button" data-tab-target="tableTab">
         表作成
       </button>
@@ -161,6 +164,25 @@
           </span>
         </button>
       </div>
+
+    </section>
+
+    <!-- 集計まとめタブ -->
+    <section id="summaryCollectTab" class="tabContent">
+
+      <p class="section-label">集計まとめ</p>
+      <div class="action-list">
+        <button id="collectSummaryButton" type="button" class="action-btn teal">
+          <span class="btn-dot"></span>
+          <span class="btn-label">
+            集計表を収集
+            <span class="btn-sub">全スライドの＜集計＞表を一覧表示</span>
+          </span>
+        </button>
+      </div>
+
+      <div id="summaryCollectStatus" class="summary-collect-status" style="display:none"></div>
+      <div id="summaryCollectTableWrap" class="summary-collect-wrap"></div>
 
     </section>
 

@@ -984,3 +984,133 @@ body {
   margin: 0;
   text-align: center;
 }
+
+/* =============================================
+   集計まとめタブ
+   ============================================= */
+.summary-collect-status {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.summary-collect-status--info    { background: #eff6ff; color: #1d4ed8; }
+.summary-collect-status--success { background: #f0fdf4; color: #166534; }
+.summary-collect-status--error   { background: #fef2f2; color: #991b1b; }
+
+.summary-collect-wrap {
+  margin-top: 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.summary-collect-table {
+  border-collapse: collapse;
+  min-width: max-content;
+  width: 100%;
+  font-size: 11px;
+}
+
+.summary-th {
+  padding: 7px 10px;
+  background: #f0f4ff;
+  color: #374151;
+  font-weight: 700;
+  border: 1px solid #e5e7eb;
+  white-space: nowrap;
+  text-align: center;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.summary-th--sticky {
+  left: 0;
+  z-index: 3;
+  text-align: left;
+}
+
+.summary-td {
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  white-space: nowrap;
+  background: #ffffff;
+}
+
+.summary-td--sticky {
+  position: sticky;
+  left: 0;
+  background: #f8fafc;
+  font-weight: 600;
+  z-index: 1;
+}
+
+.summary-td--value {
+  text-align: center;
+}
+
+tbody tr:nth-child(even) .summary-td {
+  background: #fafbfc;
+}
+
+tbody tr:nth-child(even) .summary-td--sticky {
+  background: #f0f2f4;
+}
+
+/* 写真番号ブロック */
+.summary-photo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.summary-photo-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  flex-wrap: wrap;
+}
+
+.summary-photo-slide {
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.summary-photo-value {
+  font-size: 11px;
+  color: #1a1d23;
+  flex: 1;
+  word-break: break-all;
+}
+
+.summary-photo-copy {
+  padding: 3px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.summary-photo-copy:hover { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+
+.summary-section-label {
+  margin-top: 12px;
+}
