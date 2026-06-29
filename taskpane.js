@@ -354,9 +354,13 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false }) {
   handleCol.className = "handle-col";
   if (noUnit) handleCol.classList.add("handle-col--hidden");
 
+  // エフロ・爆裂行は文字色（font）を赤で固定
+  const isRedRow = content.includes("エフロ") || content.includes("爆裂");
+  const initFontColor = isRedRow ? COLORS.RED : null;
+
   handleCol.append(
-    makeColorDot("font", null, (e) => openColorPicker(e.currentTarget, "font")),
-    makeColorDot("fill", null, (e) => openColorPicker(e.currentTarget, "fill"))
+    makeColorDot("font", initFontColor, (e) => openColorPicker(e.currentTarget, "font")),
+    makeColorDot("fill", null,          (e) => openColorPicker(e.currentTarget, "fill"))
   );
 
   const quantityEl = noUnit
@@ -601,10 +605,20 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
   }
 
   // 3行目：チェックボックス（行の種類に応じて切り替え）
-  const makeCheck = (className, labelText) => {
+  // チェック状態は元DOM行の dataset に保存して、ポップアップ再生成時に復元する
+  const checkKey   = isBaRow ? "ba" : isEfuroRow ? "efuro" : "area";
+  const savedCheck = domRow?.dataset[`check_${checkKey}`] === "true";
+
+  const makeCheck = (className, labelText, checked) => {
     const label = document.createElement("label");
     label.className = "autosum-check-item";
-    const cb = Object.assign(document.createElement("input"), { type: "checkbox", className });
+    const cb = Object.assign(document.createElement("input"), {
+      type: "checkbox", className, checked
+    });
+    // チェック変更時に元DOM行の dataset に保存
+    cb.addEventListener("change", () => {
+      if (domRow) domRow.dataset[`check_${checkKey}`] = cb.checked ? "true" : "false";
+    });
     label.append(cb, Object.assign(document.createElement("span"), {
       className: "autosum-area-label", textContent: labelText
     }));
@@ -614,9 +628,9 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
   const checkRow = document.createElement("div");
   checkRow.className = "autosum-row__checks";
   checkRow.append(
-    isBaRow    ? makeCheck("autosum-ba-checkbox",    "バを集計") :
-    isEfuroRow ? makeCheck("autosum-efuro-checkbox", "エを集計") :
-                 makeCheck("autosum-area-checkbox",  "面積計算")
+    isBaRow    ? makeCheck("autosum-ba-checkbox",    "バを集計", savedCheck) :
+    isEfuroRow ? makeCheck("autosum-efuro-checkbox", "エを集計", savedCheck) :
+                 makeCheck("autosum-area-checkbox",  "面積計算", savedCheck)
   );
   rowEl.appendChild(checkRow);
 
