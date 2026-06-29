@@ -607,7 +607,11 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
   // 3行目：チェックボックス（行の種類に応じて切り替え）
   // チェック状態は元DOM行の dataset に保存して、ポップアップ再生成時に復元する
   const checkKey   = isBaRow ? "ba" : isEfuroRow ? "efuro" : "area";
-  const savedCheck = domRow?.dataset[`check_${checkKey}`] === "true";
+  // エフロ・爆裂行はチェックをデフォルトでオン（初回のみ。dataset保存後はそちらを優先）
+  const defaultCheck = isBaRow || isEfuroRow;
+  const savedCheck = domRow?.dataset[`check_${checkKey}`] !== undefined
+    ? domRow.dataset[`check_${checkKey}`] === "true"
+    : defaultCheck;
 
   const makeCheck = (className, labelText, checked) => {
     const label = document.createElement("label");
