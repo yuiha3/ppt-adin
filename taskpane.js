@@ -296,7 +296,7 @@ function renderDefectButtons() {
   DEFECT_GROUPS.forEach(({ label, items }) => {
     const details = document.createElement("details");
     details.className = "defect-group";
-    if (label !== "塗装面") details.open = true;
+    details.open = true;
 
     const summary = document.createElement("summary");
     summary.textContent = label;
