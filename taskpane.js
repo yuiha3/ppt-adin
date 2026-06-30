@@ -1267,9 +1267,12 @@ function renderSummaryAll(baseItems, slideData) {
         row.appendChild(Object.assign(document.createElement("span"), {
           className: "summary-photo-slide", textContent: slideName + "："
         }));
-        row.appendChild(Object.assign(document.createElement("span"), {
-          className: "summary-photo-value", textContent: value || "なし"
-        }));
+        const valueEl = Object.assign(document.createElement("span"), {
+          className: "summary-photo-value"
+        });
+        // \n（段落区切り）と \v（ラインブレーク）を改行として表示
+        valueEl.textContent = (value || "なし").replace(/\v/g, "\n");
+        row.appendChild(valueEl);
 
         const copyBtn = Object.assign(document.createElement("button"), {
           type: "button", className: "summary-photo-copy", textContent: "コピー"

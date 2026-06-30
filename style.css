@@ -1089,6 +1089,7 @@ tbody tr:nth-child(even) .summary-td--sticky {
   color: #1a1d23;
   flex: 1;
   word-break: break-all;
+  white-space: pre-wrap;
 }
 
 .summary-photo-copy {
