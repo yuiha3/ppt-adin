@@ -1322,45 +1322,8 @@ function renderSummaryAll(baseItems, baseUnits, slideData) {
 
   // ── 写真番号ブロック ──────────────────────────────────
   if (photoEntries.length > 0) {
-    wrap.appendChild(makeSectionLabel("写真番号"));
-    const photoWrap = document.createElement("div");
-    photoWrap.className = "summary-photo-list";
-
-    slideData.forEach(({ slideName, rows }) => {
-      photoEntries.forEach(({ originalIndex }) => {
-        const value = getValue(rows, originalIndex);
-        const row = document.createElement("div");
-        row.className = "summary-photo-row";
-
-        row.appendChild(Object.assign(document.createElement("span"), {
-          className: "summary-photo-slide", textContent: slideName + "："
-        }));
-        const valueEl = Object.assign(document.createElement("span"), {
-          className: "summary-photo-value"
-        });
-        // \n（段落区切り）と \v（ラインブレーク）を改行として表示
-        valueEl.textContent = (value || "なし").replace(/\v/g, "\n");
-        row.appendChild(valueEl);
-
-        const copyBtn = Object.assign(document.createElement("button"), {
-          type: "button", className: "summary-photo-copy", textContent: "コピー"
-        });
-        copyBtn.addEventListener("click", async () => {
-          try {
-            await navigator.clipboard.writeText(value);
-            copyBtn.textContent = "✓ コピー済";
-            setTimeout(() => { copyBtn.textContent = "コピー"; }, 1500);
-          } catch {
-            copyBtn.textContent = "失敗";
-            setTimeout(() => { copyBtn.textContent = "コピー"; }, 1500);
-          }
-        });
-
-        row.appendChild(copyBtn);
-        photoWrap.appendChild(row);
-      });
-    });
-
+    const { photoWrap, mergeButton } = buildPhotoSummaryBlock(photoEntries, slideData, getValue);
+    wrap.appendChild(makeSectionHeader("写真番号", mergeButton));
     wrap.appendChild(photoWrap);
   }
 }
@@ -1382,6 +1345,27 @@ function buildGroupsFromSelectedRange(slideData, selectedIndices) {
         label: formatSlideGroupLabel(slideData, indices)
       });
       i = max;
+    } else {
+      groups.push({ indices: [i], label: slideData[i].slideName });
+    }
+  }
+
+  return groups;
+}
+
+function buildGroupsFromSelectedSet(slideData, selectedIndices) {
+  const selected = new Set(selectedIndices);
+  const firstSelected = selectedIndices[0];
+  const groups = [];
+
+  for (let i = 0; i < slideData.length; i++) {
+    if (i === firstSelected) {
+      groups.push({
+        indices: selectedIndices,
+        label: formatSlideGroupLabel(slideData, selectedIndices)
+      });
+    } else if (selected.has(i)) {
+      continue;
     } else {
       groups.push({ indices: [i], label: slideData[i].slideName });
     }
@@ -1432,6 +1416,103 @@ function buildSummaryRowValues(slideData, groups, originalIndex, getValue) {
     getNumericCellValues(slideData, slideData.map((_, i) => i), originalIndex, getValue)
   );
   return { groupValues, totalValue };
+}
+
+function buildPhotoSummaryBlock(photoEntries, slideData, getValue) {
+  const photoWrap = document.createElement("div");
+  photoWrap.className = "summary-photo-list";
+
+  const selected = slideData.map(() => false);
+  let currentGroups = buildIndividualGroups(slideData);
+
+  const mergeButton = Object.assign(document.createElement("button"), {
+    type: "button",
+    className: "summary-merge-btn",
+    textContent: "選択中の写真番号をまとめる"
+  });
+
+  const getGroupValue = (indices, originalIndex) => {
+    const values = indices
+      .map((si) => normalizePhotoText(getValue(slideData[si].rows, originalIndex)))
+      .filter((value) => value.length > 0);
+    return values.join("\n");
+  };
+
+  const renderRows = () => {
+    photoWrap.innerHTML = "";
+
+    currentGroups.forEach(({ indices, label }) => {
+      photoEntries.forEach(({ originalIndex }) => {
+        const value = getGroupValue(indices, originalIndex);
+        const row = document.createElement("div");
+        row.className = "summary-photo-row";
+
+        const cb = Object.assign(document.createElement("input"), {
+          type: "checkbox",
+          className: "summary-photo-check",
+          checked: indices.every((si) => selected[si]),
+          title: `${label}をまとめ対象にする`
+        });
+        cb.addEventListener("change", () => {
+          indices.forEach((si) => {
+            selected[si] = cb.checked;
+          });
+        });
+
+        row.append(
+          cb,
+          Object.assign(document.createElement("span"), {
+            className: "summary-photo-slide", textContent: label + "："
+          })
+        );
+
+        const valueEl = Object.assign(document.createElement("span"), {
+          className: "summary-photo-value",
+          textContent: value || "なし"
+        });
+        row.appendChild(valueEl);
+
+        const copyBtn = Object.assign(document.createElement("button"), {
+          type: "button", className: "summary-photo-copy", textContent: "コピー"
+        });
+        copyBtn.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(value);
+            copyBtn.textContent = "✓ コピー済";
+            setTimeout(() => { copyBtn.textContent = "コピー"; }, 1500);
+          } catch {
+            copyBtn.textContent = "失敗";
+            setTimeout(() => { copyBtn.textContent = "コピー"; }, 1500);
+          }
+        });
+
+        row.appendChild(copyBtn);
+        photoWrap.appendChild(row);
+      });
+    });
+  };
+
+  mergeButton.addEventListener("click", () => {
+    const selectedIndices = selected
+      .map((checked, i) => checked ? i : null)
+      .filter((i) => i !== null);
+
+    if (selectedIndices.length < 2) {
+      showSummaryStatus("まとめる写真番号を2つ以上選択してください。", "error");
+      return;
+    }
+
+    currentGroups = buildGroupsFromSelectedSet(slideData, selectedIndices);
+    renderRows();
+    showSummaryStatus("選択中の写真番号をまとめました。", "success");
+  });
+
+  renderRows();
+  return { photoWrap, mergeButton };
+}
+
+function normalizePhotoText(value) {
+  return String(value ?? "").replace(/\v/g, "\n").trim();
 }
 
 /**
