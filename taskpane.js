@@ -1197,25 +1197,19 @@ async function collectSummaryTables() {
     const baseItems = itemLists[0];
     const baseUnits = unitLists[0];
 
-    const itemsMatch = itemLists.every(
-      (items) => items.length === baseItems.length &&
-                 items.every((item, i) => item === baseItems[i])
-    );
-    if (!itemsMatch) {
+    const itemMismatchMessage = buildListMismatchMessage(slideData, itemLists, baseItems, "項目");
+    if (itemMismatchMessage) {
       showSummaryStatus(
-        "スライド間で項目の順番または内容が一致しないため表示できません。",
+        "スライド間で項目の順番または内容が一致しないため表示できません。 " + itemMismatchMessage,
         "error"
       );
       return;
     }
 
-    const unitsMatch = unitLists.every(
-      (units) => units.length === baseUnits.length &&
-                 units.every((unit, i) => unit === baseUnits[i])
-    );
-    if (!unitsMatch) {
+    const unitMismatchMessage = buildListMismatchMessage(slideData, unitLists, baseUnits, "単位");
+    if (unitMismatchMessage) {
       showSummaryStatus(
-        "スライド間で単位が一致しないため表示できません。",
+        "スライド間で単位が一致しないため表示できません。 " + unitMismatchMessage,
         "error"
       );
       return;
@@ -1228,6 +1222,41 @@ async function collectSummaryTables() {
       "success"
     );
   });
+}
+
+function buildListMismatchMessage(slideData, lists, baseList, label) {
+  const details = [];
+
+  lists.forEach((list, i) => {
+    if (i === 0) return;
+
+    const diffs = [];
+    if (list.length !== baseList.length) {
+      diffs.push(`${label}数 ${baseList.length}→${list.length}`);
+    }
+
+    const max = Math.max(list.length, baseList.length);
+    for (let row = 0; row < max && diffs.length < 4; row++) {
+      const baseValue = baseList[row] ?? "";
+      const value     = list[row] ?? "";
+      if (baseValue !== value) {
+        diffs.push(`${row + 1}行目 ${formatMismatchValue(baseValue)}→${formatMismatchValue(value)}`);
+      }
+    }
+
+    if (diffs.length > 0) {
+      details.push(`${slideData[i].slideName}: ${diffs.join("、")}`);
+    }
+  });
+
+  if (details.length === 0) return "";
+  const visible = details.slice(0, 5).join(" / ");
+  return details.length > 5 ? `${visible} / ほか${details.length - 5}件` : visible;
+}
+
+function formatMismatchValue(value) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim() || "空欄";
+  return `「${text.length > 24 ? text.slice(0, 24) + "..." : text}」`;
 }
 
 /**
@@ -1703,7 +1732,12 @@ async function sumAreaBySelectedTextColor() {
 
 function extractAreaValues(text) {
   let total = 0;
-  for (const m of text.matchAll(/(\S{3})x(\S+)/g)) {
+  const normalized = String(text ?? "")
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[．。]/g, ".")
+    .replace(/[×＊]/g, "x");
+
+  for (const m of normalized.matchAll(/(\d+(?:\.\d+)?)\s*[xX]\s*(\d+(?:\.\d+)?)/g)) {
     const a = parseFloat(m[1]);
     const b = parseFloat(m[2]);
     if (!isNaN(a) && !isNaN(b)) total += a * b;
