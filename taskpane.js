@@ -1139,7 +1139,7 @@ async function collectSummaryTables() {
         if (shape.type === PowerPoint.ShapeType.table) {
           const table = shape.getTable();
           table.load("rowCount,columnCount");
-          tableShapes.push({ slideIndex: si, table });
+          tableShapes.push({ slide, slideIndex: si, table });
         }
       }
     }
@@ -1148,17 +1148,17 @@ async function collectSummaryTables() {
     // ── ③ 1行目0列目が「＜集計＞」の表を対象に全セルtextをロード ──
     const candidates = [];
 
-    for (const { slideIndex, table } of tableShapes) {
+    for (const { slide, slideIndex, table } of tableShapes) {
       if (table.rowCount < 2 || table.columnCount < 1) continue;
       const firstCell = table.getCellOrNullObject(0, 0);
       firstCell.load("text");
-      candidates.push({ slideIndex, table, firstCell });
+      candidates.push({ slide, slideIndex, table, firstCell });
     }
     await context.sync();
 
     // ＜集計＞のものだけに絞って全セルをロード
     const targetTables = [];
-    for (const { slideIndex, table, firstCell } of candidates) {
+    for (const { slide, slideIndex, table, firstCell } of candidates) {
       if (firstCell.isNullObject || firstCell.text.trim() !== "＜集計＞") continue;
       const cells = [];
       for (let r = 0; r < table.rowCount; r++) {
@@ -1170,7 +1170,7 @@ async function collectSummaryTables() {
         }
         cells.push(row);
       }
-      targetTables.push({ slideIndex, table, cells });
+      targetTables.push({ slide, slideIndex, table, cells });
     }
     await context.sync();
 
@@ -1424,6 +1424,7 @@ function buildPhotoSummaryBlock(photoEntries, slideData, getValue) {
 
   const selected = slideData.map(() => false);
   let currentGroups = buildIndividualGroups(slideData);
+  let groupedPhotoValues = new Map();
 
   const mergeButton = Object.assign(document.createElement("button"), {
     type: "button",
@@ -1432,10 +1433,9 @@ function buildPhotoSummaryBlock(photoEntries, slideData, getValue) {
   });
 
   const getGroupValue = (indices, originalIndex) => {
-    const values = indices
-      .map((si) => normalizePhotoText(getValue(slideData[si].rows, originalIndex)))
-      .filter((value) => value.length > 0);
-    return values.join("\n");
+    const key = makePhotoGroupKey(indices);
+    if (groupedPhotoValues.has(key)) return groupedPhotoValues.get(key);
+    return normalizePhotoText(getValue(slideData[indices[0]].rows, originalIndex));
   };
 
   const renderRows = () => {
@@ -1492,7 +1492,7 @@ function buildPhotoSummaryBlock(photoEntries, slideData, getValue) {
     });
   };
 
-  mergeButton.addEventListener("click", () => {
+  mergeButton.addEventListener("click", async () => {
     const selectedIndices = selected
       .map((checked, i) => checked ? i : null)
       .filter((i) => i !== null);
@@ -1502,9 +1502,21 @@ function buildPhotoSummaryBlock(photoEntries, slideData, getValue) {
       return;
     }
 
-    currentGroups = buildGroupsFromSelectedSet(slideData, selectedIndices);
-    renderRows();
-    showSummaryStatus("選択中の写真番号をまとめました。", "success");
+    mergeButton.disabled = true;
+    showSummaryStatus("選択中の写真番号を集計中...", "info");
+    try {
+      const outputLines = await collectGroupedCodesFromSlideData(slideData, selectedIndices, COLORS.BLACK);
+      const outputText = outputLines.length > 0 ? outputLines.join("\n") : "なし";
+      currentGroups = buildGroupsFromSelectedSet(slideData, selectedIndices);
+      groupedPhotoValues = new Map([[makePhotoGroupKey(selectedIndices), outputText]]);
+      renderRows();
+      showSummaryStatus("選択中の写真番号をまとめました。", "success");
+    } catch (error) {
+      console.error("写真番号まとめエラー:", error);
+      showSummaryStatus("写真番号の集計に失敗しました: " + (error?.message ?? error), "error");
+    } finally {
+      mergeButton.disabled = false;
+    }
   });
 
   renderRows();
@@ -1513,6 +1525,23 @@ function buildPhotoSummaryBlock(photoEntries, slideData, getValue) {
 
 function normalizePhotoText(value) {
   return String(value ?? "").replace(/\v/g, "\n").trim();
+}
+
+function makePhotoGroupKey(indices) {
+  return indices.join(",");
+}
+
+async function collectGroupedCodesFromSlideData(slideData, indices, targetTextColor) {
+  return PowerPoint.run(async (context) => {
+    const allSlides = context.presentation.slides;
+    allSlides.load("items");
+    await context.sync();
+
+    const slides = indices
+      .map((i) => allSlides.items[slideData[i].slideIndex])
+      .filter(Boolean);
+    return collectGroupedCodes(context, slides, targetTextColor);
+  });
 }
 
 /**
