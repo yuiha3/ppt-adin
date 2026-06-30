@@ -1244,6 +1244,30 @@ function renderSummaryAll(baseItems, slideData) {
   if (normalEntries.length > 0) {
     wrap.appendChild(makeSectionLabel("集計結果"));
     wrap.appendChild(buildSummaryTable(normalEntries, slideData, getValue));
+
+    // Excel貼り付け用コピーボタン
+    const copyBtn = Object.assign(document.createElement("button"), {
+      type: "button",
+      className: "summary-excel-copy-btn",
+      textContent: "Excel貼り付け用にコピー"
+    });
+    copyBtn.addEventListener("click", async () => {
+      // ヘッダー行を除いたデータ行をタブ区切り・改行区切りで生成
+      const tsv = normalEntries.map(({ name, originalIndex }) => {
+        const values = slideData.map(({ rows }) => getValue(rows, originalIndex));
+        return [name, ...values].join("	");
+      }).join("\n");
+
+      try {
+        await navigator.clipboard.writeText(tsv);
+        copyBtn.textContent = "✓ コピー済";
+        setTimeout(() => { copyBtn.textContent = "Excel貼り付け用にコピー"; }, 1500);
+      } catch {
+        copyBtn.textContent = "失敗";
+        setTimeout(() => { copyBtn.textContent = "Excel貼り付け用にコピー"; }, 1500);
+      }
+    });
+    wrap.appendChild(copyBtn);
   }
 
   // ── その他ブロック ────────────────────────────────────
