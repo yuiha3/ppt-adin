@@ -1285,8 +1285,8 @@ function renderSummaryAll(baseItems, baseUnits, slideData) {
 
   // ── 通常項目ブロック（合計・単位列付き）────────────────
   if (normalEntries.length > 0) {
-    wrap.appendChild(makeSectionLabel("集計結果"));
-    const { tableWrap, getCheckedTsv } = buildNormalSummaryTable(normalEntries, slideData, getValue);
+    const { tableWrap, getCheckedTsv, mergeButton } = buildNormalSummaryTable(normalEntries, slideData, getValue);
+    wrap.appendChild(makeSectionHeader("集計結果", mergeButton));
     wrap.appendChild(tableWrap);
 
     // Excel貼り付け用コピーボタン（チェック行のみ・合計・単位列を含む）
@@ -1412,15 +1412,11 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
   const mergeSelected = slideData.map(() => false);
   let currentGroups = buildIndividualGroups(slideData);
 
-  const mergeControls = document.createElement("div");
-  mergeControls.className = "summary-merge-controls";
   const mergeButton = Object.assign(document.createElement("button"), {
     type: "button",
     className: "summary-merge-btn",
     textContent: "選択列の結果を合算"
   });
-  mergeControls.appendChild(mergeButton);
-  tableWrap.appendChild(mergeControls);
 
   const table = document.createElement("table");
   table.className = "summary-collect-table";
@@ -1454,17 +1450,17 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
 
     const checks = document.createElement("div");
     checks.className = "summary-slide-checks";
-    indices.forEach((si) => {
-      const cb = Object.assign(document.createElement("input"), {
-        type: "checkbox",
-        checked: mergeSelected[si],
-        title: `${slideData[si].slideName}を合算対象にする`
-      });
-      cb.addEventListener("change", () => {
+    const cb = Object.assign(document.createElement("input"), {
+      type: "checkbox",
+      checked: indices.every((si) => mergeSelected[si]),
+      title: `${label}を合算対象にする`
+    });
+    cb.addEventListener("change", () => {
+      indices.forEach((si) => {
         mergeSelected[si] = cb.checked;
       });
-      checks.appendChild(cb);
     });
+    checks.appendChild(cb);
 
     th.append(
       checks,
@@ -1624,7 +1620,7 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
       .join("\n");
   };
 
-  return { tableWrap, getCheckedTsv };
+  return { tableWrap, getCheckedTsv, mergeButton };
 }
 
 /**
@@ -1677,6 +1673,14 @@ function makeSectionLabel(text) {
     className: "section-label summary-section-label", textContent: text
   });
   return el;
+}
+
+function makeSectionHeader(text, actionEl = null) {
+  const header = document.createElement("div");
+  header.className = "summary-section-header";
+  header.appendChild(makeSectionLabel(text));
+  if (actionEl) header.appendChild(actionEl);
+  return header;
 }
 
 async function collectRedTextFromSlide() {
