@@ -1322,9 +1322,11 @@ function buildSummaryTable(entries, slideData, getValue) {
   const tbody = document.createElement("tbody");
   entries.forEach(({ name, originalIndex }) => {
     const tr = document.createElement("tr");
-    tr.appendChild(Object.assign(document.createElement("td"), {
-      className: "summary-td summary-td--sticky", textContent: name
-    }));
+    const itemTd = Object.assign(document.createElement("td"), {
+      className: "summary-td summary-td--sticky"
+    });
+    itemTd.innerHTML = escapeHtml(name).replace(/\n/g, "<br>");
+    tr.appendChild(itemTd);
     slideData.forEach(({ rows }) => {
       tr.appendChild(Object.assign(document.createElement("td"), {
         className: "summary-td summary-td--value",
