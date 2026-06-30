@@ -283,6 +283,9 @@ function activateTab(tabId) {
   document.querySelectorAll(".tabContent").forEach((el) => {
     el.classList.toggle("active", el.id === tabId);
   });
+  // 集計タブのみフッターを表示
+  const footer = document.querySelector(".result-footer");
+  if (footer) footer.style.display = tabId === "summaryTab" ? "" : "none";
 }
 
 function initializeTableBuilder() {
