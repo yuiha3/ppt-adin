@@ -1365,28 +1365,40 @@ function renderSummaryAll(baseItems, baseUnits, slideData) {
   }
 }
 
-/**
- * 隣接するスライド列のチェック状態から列グループを計算する。
- * mergeChecked[i] が true の場合、slideData[i] を直前のグループに合算する。
- * mergeChecked[0] は常に false（先頭列は合算対象なし）。
- */
-function computeGroups(slideData, mergeChecked) {
+function buildIndividualGroups(slideData) {
+  return slideData.map(({ slideName }, i) => ({ indices: [i], label: slideName }));
+}
+
+function buildGroupsFromSelectedRange(slideData, selectedIndices) {
+  const min = selectedIndices[0];
+  const max = selectedIndices[selectedIndices.length - 1];
   const groups = [];
-  slideData.forEach(({ slideName }, i) => {
-    if (i > 0 && mergeChecked[i] && groups.length > 0) {
-      // 前のグループに合算
-      groups.at(-1).indices.push(i);
+
+  for (let i = 0; i < slideData.length; i++) {
+    if (i === min) {
+      const indices = Array.from({ length: max - min + 1 }, (_, offset) => min + offset);
+      groups.push({
+        indices,
+        label: formatSlideGroupLabel(slideData, indices)
+      });
+      i = max;
     } else {
-      groups.push({ indices: [i], label: slideName });
+      groups.push({ indices: [i], label: slideData[i].slideName });
     }
-  });
-  // ラベルを「スライド2,3,4」形式に更新
-  groups.forEach((g) => {
-    if (g.indices.length > 1) {
-      g.label = g.indices.map((i) => slideData[i].slideName).join(",");
-    }
-  });
+  }
+
   return groups;
+}
+
+function formatSlideGroupLabel(slideData, indices) {
+  const numbers = indices.map((i) => {
+    const match = String(slideData[i].slideName).match(/^スライド(\d+)$/);
+    return match ? match[1] : null;
+  });
+
+  return numbers.every(Boolean)
+    ? `スライド${numbers.join(",")}`
+    : indices.map((i) => slideData[i].slideName).join(",");
 }
 
 /**
@@ -1397,96 +1409,32 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
   const tableWrap = document.createElement("div");
   tableWrap.className = "summary-collect-wrap";
 
-  // mergeChecked[i]: slideData[i] を前の列グループに合算するか
-  // 先頭列(0)は合算不可のため常に false
-  const mergeChecked = slideData.map(() => false);
-  const mergeCheckboxes = []; // 合算チェックボックスの参照
+  const mergeSelected = slideData.map(() => false);
+  let currentGroups = buildIndividualGroups(slideData);
+
+  const mergeControls = document.createElement("div");
+  mergeControls.className = "summary-merge-controls";
+  const mergeButton = Object.assign(document.createElement("button"), {
+    type: "button",
+    className: "summary-merge-btn",
+    textContent: "選択列の結果を合算"
+  });
+  mergeControls.appendChild(mergeButton);
+  tableWrap.appendChild(mergeControls);
 
   const table = document.createElement("table");
   table.className = "summary-collect-table";
 
   const thead = document.createElement("thead");
 
-  // ── 合算チェック行（スライド列の上に配置）──────────────
-  const mergeRow = document.createElement("tr");
-  // チェック列・項目列・合計列・単位列のセルは空
-  ["summary-th--check", "summary-th summary-th--sticky", "summary-th--total", "summary-th--unit"]
-    .forEach((cls) => {
-      mergeRow.appendChild(Object.assign(document.createElement("th"), { className: cls }));
-    });
-
-  // スライド列のみ（先頭は合算なし）
-  slideData.forEach((_, i) => {
-    const th = document.createElement("th");
-    th.className = "summary-th summary-th--merge";
-    if (i > 0) {
-      const cb = Object.assign(document.createElement("input"), {
-        type: "checkbox", checked: false, title: "前の列と合算"
-      });
-      cb.addEventListener("change", () => {
-        mergeChecked[i] = cb.checked;
-        rebuildTbody();
-      });
-      mergeCheckboxes.push({ index: i, cb });
-      th.appendChild(cb);
-    }
-    mergeRow.appendChild(th);
-  });
-
-  // mergeRow の列順を「チェック・項目・S1・S2...・合計・単位」に合わせる
-  // → 現在の順序がずれているので正しく組み直す
-  const mergeRow2 = document.createElement("tr");
-
-  // チェック列（空）
-  mergeRow2.appendChild(Object.assign(document.createElement("th"), {
-    className: "summary-th summary-th--check"
-  }));
-  // 項目列（空）
-  mergeRow2.appendChild(Object.assign(document.createElement("th"), {
-    className: "summary-th"
-  }));
-  // スライド列（先頭以外にチェックボックス）
-  slideData.forEach((_, i) => {
-    const th = document.createElement("th");
-    th.className = "summary-th summary-th--merge";
-    if (i > 0) {
-      const cb = Object.assign(document.createElement("input"), {
-        type: "checkbox", checked: false, title: "前の列と合算"
-      });
-      cb.addEventListener("change", () => {
-        mergeChecked[i] = cb.checked;
-        rebuildTbody();
-      });
-      th.appendChild(cb);
-    }
-    mergeRow2.appendChild(th);
-  });
-  // 合計列（空）・単位列（空）
-  mergeRow2.appendChild(Object.assign(document.createElement("th"), { className: "summary-th" }));
-  mergeRow2.appendChild(Object.assign(document.createElement("th"), { className: "summary-th" }));
-
-  thead.appendChild(mergeRow2);
-
   // ── ヘッダー行 ──────────────────────────────────────────
-  const hRow = document.createElement("tr");
-
   const allCheckTh = document.createElement("th");
   allCheckTh.className = "summary-th summary-th--check";
   const allCheck = Object.assign(document.createElement("input"), { type: "checkbox", checked: true });
   allCheckTh.appendChild(allCheck);
-  hRow.appendChild(allCheckTh);
 
-  hRow.appendChild(Object.assign(document.createElement("th"), {
-    className: "summary-th summary-th--sticky", textContent: "項目"
-  }));
-
-  // スライド列ヘッダーは後で rebuildTbody で動的に更新するため、
-  // thead の hRow ヘッダーも再描画対象にする
-  // → ヘッダーも tbody 同様に rebuildTbody で管理する
   const dynamicHead = document.createElement("tr"); // 動的ヘッダー行（スライド〜単位）
-  dynamicHead.appendChild(Object.assign(document.createElement("th"), {
-    className: "summary-th summary-th--check"
-  }));
+  dynamicHead.appendChild(allCheckTh);
   dynamicHead.appendChild(Object.assign(document.createElement("th"), {
     className: "summary-th summary-th--sticky", textContent: "項目"
   }));
@@ -1500,18 +1448,63 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
 
   const rowCheckboxes = [];
 
+  function makeGroupHeaderCell({ indices, label }) {
+    const th = document.createElement("th");
+    th.className = "summary-th";
+
+    const checks = document.createElement("div");
+    checks.className = "summary-slide-checks";
+    indices.forEach((si) => {
+      const cb = Object.assign(document.createElement("input"), {
+        type: "checkbox",
+        checked: mergeSelected[si],
+        title: `${slideData[si].slideName}を合算対象にする`
+      });
+      cb.addEventListener("change", () => {
+        mergeSelected[si] = cb.checked;
+      });
+      checks.appendChild(cb);
+    });
+
+    th.append(
+      checks,
+      Object.assign(document.createElement("span"), {
+        className: "summary-slide-label",
+        textContent: label
+      })
+    );
+    return th;
+  }
+
+  mergeButton.addEventListener("click", () => {
+    const selectedIndices = mergeSelected
+      .map((checked, i) => checked ? i : null)
+      .filter((i) => i !== null);
+
+    if (selectedIndices.length < 2) {
+      showSummaryStatus("合算する列を2列以上選択してください。", "error");
+      return;
+    }
+
+    const min = selectedIndices[0];
+    const max = selectedIndices[selectedIndices.length - 1];
+    if (max - min + 1 !== selectedIndices.length) {
+      showSummaryStatus("選択列が連続していません。連続する列を選択してください。", "error");
+      return;
+    }
+
+    currentGroups = buildGroupsFromSelectedRange(slideData, selectedIndices);
+    rebuildTbody();
+    showSummaryStatus("選択列の結果を合算しました。", "success");
+  });
+
   // ── 再描画関数 ───────────────────────────────────────────
   function rebuildTbody() {
-    // グループを計算
-    const groups = computeGroups(slideData, mergeChecked);
-
     // 動的ヘッダー行を再構築
     // 既存の動的列（スライド〜単位）を削除して再追加
     while (dynamicHead.children.length > 2) dynamicHead.removeChild(dynamicHead.lastChild);
-    groups.forEach(({ label }) => {
-      dynamicHead.appendChild(Object.assign(document.createElement("th"), {
-        className: "summary-th", textContent: label
-      }));
+    currentGroups.forEach((group) => {
+      dynamicHead.appendChild(makeGroupHeaderCell(group));
     });
     dynamicHead.appendChild(Object.assign(document.createElement("th"), {
       className: "summary-th summary-th--total", textContent: "合計"
@@ -1549,7 +1542,7 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
       }));
 
       // グループ列の値（グループ内スライドの合計）
-      const groupValues = groups.map(({ indices }) => {
+      const groupValues = currentGroups.map(({ indices }) => {
         const nums = indices
           .map((si) => parseFloat(getValue(slideData[si].rows, originalIndex)))
           .filter((v) => !isNaN(v));
@@ -1607,11 +1600,10 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
 
   // チェック行のみTSV生成（現在のグループ状態を反映）
   const getCheckedTsv = () => {
-    const groups = computeGroups(slideData, mergeChecked);
     return entries
       .filter((_, i) => rowCheckboxStates[i] !== false)
       .map(({ name, originalIndex, unit }) => {
-        const groupValues = groups.map(({ indices }) => {
+        const groupValues = currentGroups.map(({ indices }) => {
           const nums = indices
             .map((si) => parseFloat(getValue(slideData[si].rows, originalIndex)))
             .filter((v) => !isNaN(v));
