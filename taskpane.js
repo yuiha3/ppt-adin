@@ -1207,7 +1207,7 @@ async function collectSummaryTables() {
     // ── ⑥ アドイン内に3ブロックに分けて表示 ───────────
     renderSummaryAll(baseItems, slideData);
     showSummaryStatus(
-      `${slideData.length}枚のスライドから${baseItems.length}件の項目を収集しました。`,
+      `${slideData.length}枚のスライドから表の情報を収集しました。`,
       "success"
     );
   });
