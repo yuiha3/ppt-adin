@@ -1030,8 +1030,6 @@ body {
 }
 
 .summary-th--sticky {
-  left: 0;
-  z-index: 3;
   text-align: left;
 }
 
@@ -1044,11 +1042,8 @@ body {
 }
 
 .summary-td--sticky {
-  position: sticky;
-  left: 0;
   background: #f8fafc;
   font-weight: 600;
-  z-index: 1;
 }
 
 .summary-td--value {
