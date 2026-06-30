@@ -1325,7 +1325,7 @@ function buildSummaryTable(entries, slideData, getValue) {
     const itemTd = Object.assign(document.createElement("td"), {
       className: "summary-td summary-td--sticky"
     });
-    itemTd.innerHTML = escapeHtml(name).replace(/\n/g, "<br>");
+    itemTd.innerHTML = escapeHtml(name).replace(/[\n\v]/g, "<br>");
     tr.appendChild(itemTd);
     slideData.forEach(({ rows }) => {
       tr.appendChild(Object.assign(document.createElement("td"), {
