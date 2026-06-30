@@ -1186,20 +1186,22 @@ async function collectSummaryTables() {
       rows: cells.map((row) => row.map((cell) => (cell.isNullObject ? "" : cell.text ?? "")))
     }));
 
-    // ── ⑤ 項目列の一致チェック ───────────────────────────
-    // 各スライドの項目列（r>=1, c=0）を抽出
+    // ── ⑤ 項目列・単位列の一致チェック ──────────────────
     const itemLists = slideData.map(({ rows }) =>
       rows.slice(1).map((row) => row[0] ?? "")
     );
+    const unitLists = slideData.map(({ rows }) =>
+      rows.slice(1).map((row) => row[2] ?? "")
+    );
 
-    // 全スライドの項目リストが完全一致するか確認
     const baseItems = itemLists[0];
-    const allMatch = itemLists.every(
+    const baseUnits = unitLists[0];
+
+    const itemsMatch = itemLists.every(
       (items) => items.length === baseItems.length &&
                  items.every((item, i) => item === baseItems[i])
     );
-
-    if (!allMatch) {
+    if (!itemsMatch) {
       showSummaryStatus(
         "スライド間で項目の順番または内容が一致しないため表示できません。",
         "error"
@@ -1207,8 +1209,20 @@ async function collectSummaryTables() {
       return;
     }
 
+    const unitsMatch = unitLists.every(
+      (units) => units.length === baseUnits.length &&
+                 units.every((unit, i) => unit === baseUnits[i])
+    );
+    if (!unitsMatch) {
+      showSummaryStatus(
+        "スライド間で単位が一致しないため表示できません。",
+        "error"
+      );
+      return;
+    }
+
     // ── ⑥ アドイン内に3ブロックに分けて表示 ───────────
-    renderSummaryAll(baseItems, slideData);
+    renderSummaryAll(baseItems, baseUnits, slideData);
     showSummaryStatus(
       `${slideData.length}枚のスライドから表の情報を収集しました。`,
       "success"
@@ -1222,7 +1236,7 @@ async function collectSummaryTables() {
  * - その他：横スクロール表
  * - 写真番号：各スライドの値 + コピーボタン
  */
-function renderSummaryAll(baseItems, slideData) {
+function renderSummaryAll(baseItems, baseUnits, slideData) {
   const wrap = document.getElementById("summaryCollectTableWrap");
   if (!wrap) return;
   wrap.innerHTML = "";
@@ -1230,32 +1244,34 @@ function renderSummaryAll(baseItems, slideData) {
   // 元のインデックスを保持したまま1回のループで3種類に分類
   const normalEntries = [], otherEntries = [], photoEntries = [];
   baseItems.forEach((name, originalIndex) => {
-    const entry = { name, originalIndex };
+    const entry = { name, originalIndex, unit: baseUnits[originalIndex] ?? "" };
     if      (name === "写真番号") photoEntries.push(entry);
     else if (name === "その他")   otherEntries.push(entry);
     else                          normalEntries.push(entry);
   });
 
-  // 各スライドの指定インデックスの値を取得するヘルパー
+  // 列インデックスを指定して値を取得するヘルパー
   // rows[0] = ヘッダー行、rows[originalIndex + 1] = データ行
-  const getValue = (rows, originalIndex) => rows[originalIndex + 1]?.[1] ?? "";
+  const getValue = (rows, originalIndex, col = 1) => rows[originalIndex + 1]?.[col] ?? "";
 
-  // ── 通常項目ブロック ──────────────────────────────────
+  // ── 通常項目ブロック（合計・単位列付き）────────────────
   if (normalEntries.length > 0) {
     wrap.appendChild(makeSectionLabel("集計結果"));
-    wrap.appendChild(buildSummaryTable(normalEntries, slideData, getValue));
+    wrap.appendChild(buildNormalSummaryTable(normalEntries, slideData, getValue));
 
-    // Excel貼り付け用コピーボタン
+    // Excel貼り付け用コピーボタン（合計・単位列を含む）
     const copyBtn = Object.assign(document.createElement("button"), {
       type: "button",
       className: "summary-excel-copy-btn",
       textContent: "Excel貼り付け用にコピー"
     });
     copyBtn.addEventListener("click", async () => {
-      // ヘッダー行を除いたデータ行をタブ区切り・改行区切りで生成
-      const tsv = normalEntries.map(({ name, originalIndex }) => {
+      const tsv = normalEntries.map(({ name, originalIndex, unit }) => {
         const values = slideData.map(({ rows }) => getValue(rows, originalIndex));
-        return [name, ...values].join("	");
+        const nums    = values.map((v) => parseFloat(v)).filter((v) => !isNaN(v));
+        const places  = maxDecimalPlacesFromNumbers(nums);
+        const total   = nums.length > 0 ? sum(nums).toFixed(places) : "";
+        return [name, ...values, total, unit].join("\t");
       }).join("\n");
 
       try {
@@ -1319,6 +1335,72 @@ function renderSummaryAll(baseItems, slideData) {
 
     wrap.appendChild(photoWrap);
   }
+}
+
+/**
+ * 通常項目用：合計列・単位列付きの横スクロール集計表を生成して返す。
+ */
+function buildNormalSummaryTable(entries, slideData, getValue) {
+  const tableWrap = document.createElement("div");
+  tableWrap.className = "summary-collect-wrap";
+
+  const table = document.createElement("table");
+  table.className = "summary-collect-table";
+
+  // ヘッダー行
+  const thead = document.createElement("thead");
+  const hRow  = document.createElement("tr");
+  hRow.appendChild(Object.assign(document.createElement("th"), {
+    className: "summary-th summary-th--sticky", textContent: "項目"
+  }));
+  slideData.forEach(({ slideName }) => {
+    hRow.appendChild(Object.assign(document.createElement("th"), {
+      className: "summary-th", textContent: slideName
+    }));
+  });
+  hRow.appendChild(Object.assign(document.createElement("th"), {
+    className: "summary-th summary-th--total", textContent: "合計"
+  }));
+  hRow.appendChild(Object.assign(document.createElement("th"), {
+    className: "summary-th summary-th--unit", textContent: "単位"
+  }));
+  thead.appendChild(hRow);
+  table.appendChild(thead);
+
+  // データ行
+  const tbody = document.createElement("tbody");
+  entries.forEach(({ name, originalIndex, unit }) => {
+    const tr = document.createElement("tr");
+    tr.appendChild(Object.assign(document.createElement("td"), {
+      className: "summary-td summary-td--sticky", textContent: name
+    }));
+
+    const values = slideData.map(({ rows }) => getValue(rows, originalIndex));
+    values.forEach((v) => {
+      tr.appendChild(Object.assign(document.createElement("td"), {
+        className: "summary-td summary-td--value", textContent: v
+      }));
+    });
+
+    // 合計列
+    const nums   = values.map((v) => parseFloat(v)).filter((v) => !isNaN(v));
+    const places = maxDecimalPlacesFromNumbers(nums);
+    const total  = nums.length > 0 ? sum(nums).toFixed(places) : "";
+    tr.appendChild(Object.assign(document.createElement("td"), {
+      className: "summary-td summary-td--value summary-td--total", textContent: total
+    }));
+
+    // 単位列
+    tr.appendChild(Object.assign(document.createElement("td"), {
+      className: "summary-td summary-td--unit-cell", textContent: unit
+    }));
+
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  tableWrap.appendChild(table);
+  return tableWrap;
 }
 
 /**
