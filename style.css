@@ -1140,3 +1140,19 @@ tbody tr:nth-child(even) .summary-td--sticky {
   color: #6b7280;
   white-space: nowrap;
 }
+
+.summary-th--check,
+.summary-td--check {
+  width: 24px;
+  min-width: 24px;
+  text-align: center;
+  padding: 4px;
+}
+
+.summary-th--check input,
+.summary-td--check input {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: #0070c0;
+}

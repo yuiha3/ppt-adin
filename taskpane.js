@@ -1257,23 +1257,22 @@ function renderSummaryAll(baseItems, baseUnits, slideData) {
   // ── 通常項目ブロック（合計・単位列付き）────────────────
   if (normalEntries.length > 0) {
     wrap.appendChild(makeSectionLabel("集計結果"));
-    wrap.appendChild(buildNormalSummaryTable(normalEntries, slideData, getValue));
+    const { tableWrap, getCheckedTsv } = buildNormalSummaryTable(normalEntries, slideData, getValue);
+    wrap.appendChild(tableWrap);
 
-    // Excel貼り付け用コピーボタン（合計・単位列を含む）
+    // Excel貼り付け用コピーボタン（チェック行のみ・合計・単位列を含む）
     const copyBtn = Object.assign(document.createElement("button"), {
       type: "button",
       className: "summary-excel-copy-btn",
       textContent: "Excel貼り付け用にコピー"
     });
     copyBtn.addEventListener("click", async () => {
-      const tsv = normalEntries.map(({ name, originalIndex, unit }) => {
-        const values = slideData.map(({ rows }) => getValue(rows, originalIndex));
-        const nums    = values.map((v) => parseFloat(v)).filter((v) => !isNaN(v));
-        const places  = maxDecimalPlacesFromNumbers(nums);
-        const total   = nums.length > 0 ? sum(nums).toFixed(places) : "";
-        return [name, ...values, total, unit].join("\t");
-      }).join("\n");
-
+      const tsv = getCheckedTsv();
+      if (!tsv) {
+        copyBtn.textContent = "行が未選択です";
+        setTimeout(() => { copyBtn.textContent = "Excel貼り付け用にコピー"; }, 1500);
+        return;
+      }
       try {
         await navigator.clipboard.writeText(tsv);
         copyBtn.textContent = "✓ コピー済";
@@ -1338,7 +1337,8 @@ function renderSummaryAll(baseItems, baseUnits, slideData) {
 }
 
 /**
- * 通常項目用：合計列・単位列付きの横スクロール集計表を生成して返す。
+ * 通常項目用：チェックボックス・合計列・単位列付きの横スクロール集計表を生成して返す。
+ * 戻り値は { tableWrap, getCheckedTsv } のオブジェクト。
  */
 function buildNormalSummaryTable(entries, slideData, getValue) {
   const tableWrap = document.createElement("div");
@@ -1347,9 +1347,17 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
   const table = document.createElement("table");
   table.className = "summary-collect-table";
 
-  // ヘッダー行
+  // ── ヘッダー行 ──────────────────────────────────────────
   const thead = document.createElement("thead");
   const hRow  = document.createElement("tr");
+
+  // 全選択チェックボックス
+  const allCheckTh = document.createElement("th");
+  allCheckTh.className = "summary-th summary-th--check";
+  const allCheck = Object.assign(document.createElement("input"), { type: "checkbox", checked: true });
+  allCheckTh.appendChild(allCheck);
+  hRow.appendChild(allCheckTh);
+
   hRow.appendChild(Object.assign(document.createElement("th"), {
     className: "summary-th summary-th--sticky", textContent: "項目"
   }));
@@ -1367,10 +1375,31 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
   thead.appendChild(hRow);
   table.appendChild(thead);
 
-  // データ行
+  // ── データ行 ─────────────────────────────────────────────
   const tbody = document.createElement("tbody");
-  entries.forEach(({ name, originalIndex, unit }) => {
+  const rowCheckboxes = [];
+
+  entries.forEach(({ name, originalIndex, unit }, i) => {
     const tr = document.createElement("tr");
+
+    // チェックボックス列
+    const checkTd = document.createElement("td");
+    checkTd.className = "summary-td summary-td--check";
+    const cb = Object.assign(document.createElement("input"), {
+      type: "checkbox", checked: true
+    });
+    cb.dataset.entryIndex = String(i);
+    // 個別チェック変更時に全選択チェックの状態を更新
+    cb.addEventListener("change", () => {
+      const all   = rowCheckboxes.every((c) => c.checked);
+      const none  = rowCheckboxes.every((c) => !c.checked);
+      allCheck.checked       = all;
+      allCheck.indeterminate = !all && !none;
+    });
+    rowCheckboxes.push(cb);
+    checkTd.appendChild(cb);
+    tr.appendChild(checkTd);
+
     tr.appendChild(Object.assign(document.createElement("td"), {
       className: "summary-td summary-td--sticky", textContent: name
     }));
@@ -1398,9 +1427,28 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
     tbody.appendChild(tr);
   });
 
+  // 全選択チェック変更時に全行を連動
+  allCheck.addEventListener("change", () => {
+    rowCheckboxes.forEach((cb) => { cb.checked = allCheck.checked; });
+  });
+
   table.appendChild(tbody);
   tableWrap.appendChild(table);
-  return tableWrap;
+
+  // チェック行のみTSV生成する関数
+  const getCheckedTsv = () =>
+    entries
+      .filter((_, i) => rowCheckboxes[i]?.checked)
+      .map(({ name, originalIndex, unit }) => {
+        const values = slideData.map(({ rows }) => getValue(rows, originalIndex));
+        const nums   = values.map((v) => parseFloat(v)).filter((v) => !isNaN(v));
+        const places = maxDecimalPlacesFromNumbers(nums);
+        const total  = nums.length > 0 ? sum(nums).toFixed(places) : "";
+        return [name, ...values, total, unit].join("\t");
+      })
+      .join("\n");
+
+  return { tableWrap, getCheckedTsv };
 }
 
 /**
