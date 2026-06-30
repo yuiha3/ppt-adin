@@ -1401,6 +1401,39 @@ function formatSlideGroupLabel(slideData, indices) {
     : indices.map((i) => slideData[i].slideName).join(",");
 }
 
+function getNumericCellValues(slideData, slideIndices, originalIndex, getValue) {
+  return slideIndices
+    .map((si) => {
+      const raw = getValue(slideData[si].rows, originalIndex);
+      const value = parseFloat(raw);
+      return isNaN(value) ? null : { raw, value };
+    })
+    .filter(Boolean);
+}
+
+function maxDecimalPlacesFromValues(values) {
+  return values.reduce((max, { raw, value }) => {
+    const places = getDecimalPlaces(String(raw).trim());
+    return Math.max(max, places ?? getDecimalPlaces(String(value)) ?? 0);
+  }, 0);
+}
+
+function formatSumFromValues(values) {
+  return values.length > 0
+    ? sum(values.map(({ value }) => value)).toFixed(maxDecimalPlacesFromValues(values))
+    : "";
+}
+
+function buildSummaryRowValues(slideData, groups, originalIndex, getValue) {
+  const groupValues = groups.map(({ indices }) =>
+    formatSumFromValues(getNumericCellValues(slideData, indices, originalIndex, getValue))
+  );
+  const totalValue = formatSumFromValues(
+    getNumericCellValues(slideData, slideData.map((_, i) => i), originalIndex, getValue)
+  );
+  return { groupValues, totalValue };
+}
+
 /**
  * 通常項目用：チェックボックス・列合算・合計列・単位列付きの横スクロール集計表を生成。
  * 戻り値は { tableWrap, getCheckedTsv } のオブジェクト。
@@ -1537,33 +1570,17 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
         className: "summary-td summary-td--sticky", textContent: name
       }));
 
-      // グループ列の値（グループ内スライドの合計）
-      const groupValues = currentGroups.map(({ indices }) => {
-        const nums = indices
-          .map((si) => parseFloat(getValue(slideData[si].rows, originalIndex)))
-          .filter((v) => !isNaN(v));
-        return nums.length > 0 ? sum(nums) : null;
-      });
-
-      // 全グループの値から最大小数桁数を決定
-      const allNums = groupValues.filter((v) => v !== null);
-      const places  = maxDecimalPlacesFromNumbers(allNums);
+      const { groupValues, totalValue } = buildSummaryRowValues(slideData, currentGroups, originalIndex, getValue);
 
       groupValues.forEach((v) => {
         tr.appendChild(Object.assign(document.createElement("td"), {
           className: "summary-td summary-td--value",
-          textContent: v !== null ? v.toFixed(places) : ""
+          textContent: v
         }));
       });
 
-      // 合計列（全スライドの合計）
-      const totalNums = slideData
-        .map(({ rows }) => parseFloat(getValue(rows, originalIndex)))
-        .filter((v) => !isNaN(v));
-      const totalPlaces = maxDecimalPlacesFromNumbers(totalNums);
-      const total = totalNums.length > 0 ? sum(totalNums).toFixed(totalPlaces) : "";
       tr.appendChild(Object.assign(document.createElement("td"), {
-        className: "summary-td summary-td--value summary-td--total", textContent: total
+        className: "summary-td summary-td--value summary-td--total", textContent: totalValue
       }));
 
       // 単位列
@@ -1599,23 +1616,8 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
     return entries
       .filter((_, i) => rowCheckboxStates[i] !== false)
       .map(({ name, originalIndex, unit }) => {
-        const groupValues = currentGroups.map(({ indices }) => {
-          const nums = indices
-            .map((si) => parseFloat(getValue(slideData[si].rows, originalIndex)))
-            .filter((v) => !isNaN(v));
-          return nums.length > 0 ? sum(nums) : null;
-        });
-        const allNums = groupValues.filter((v) => v !== null);
-        const places  = maxDecimalPlacesFromNumbers(allNums);
-        const cols    = groupValues.map((v) => v !== null ? v.toFixed(places) : "");
-
-        const totalNums = slideData
-          .map(({ rows }) => parseFloat(getValue(rows, originalIndex)))
-          .filter((v) => !isNaN(v));
-        const totalPlaces = maxDecimalPlacesFromNumbers(totalNums);
-        const total = totalNums.length > 0 ? sum(totalNums).toFixed(totalPlaces) : "";
-
-        return [name, ...cols, total, unit].join("\t");
+        const { groupValues, totalValue } = buildSummaryRowValues(slideData, currentGroups, originalIndex, getValue);
+        return [name, ...groupValues, totalValue, unit].join("\t");
       })
       .join("\n");
   };
