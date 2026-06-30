@@ -1337,21 +1337,110 @@ function renderSummaryAll(baseItems, baseUnits, slideData) {
 }
 
 /**
- * 通常項目用：チェックボックス・合計列・単位列付きの横スクロール集計表を生成して返す。
+ * 隣接するスライド列のチェック状態から列グループを計算する。
+ * mergeChecked[i] が true の場合、slideData[i] を直前のグループに合算する。
+ * mergeChecked[0] は常に false（先頭列は合算対象なし）。
+ */
+function computeGroups(slideData, mergeChecked) {
+  const groups = [];
+  slideData.forEach(({ slideName }, i) => {
+    if (i > 0 && mergeChecked[i] && groups.length > 0) {
+      // 前のグループに合算
+      groups.at(-1).indices.push(i);
+    } else {
+      groups.push({ indices: [i], label: slideName });
+    }
+  });
+  // ラベルを「スライド2,3,4」形式に更新
+  groups.forEach((g) => {
+    if (g.indices.length > 1) {
+      g.label = g.indices.map((i) => slideData[i].slideName).join(",");
+    }
+  });
+  return groups;
+}
+
+/**
+ * 通常項目用：チェックボックス・列合算・合計列・単位列付きの横スクロール集計表を生成。
  * 戻り値は { tableWrap, getCheckedTsv } のオブジェクト。
  */
 function buildNormalSummaryTable(entries, slideData, getValue) {
   const tableWrap = document.createElement("div");
   tableWrap.className = "summary-collect-wrap";
 
+  // mergeChecked[i]: slideData[i] を前の列グループに合算するか
+  // 先頭列(0)は合算不可のため常に false
+  const mergeChecked = slideData.map(() => false);
+  const mergeCheckboxes = []; // 合算チェックボックスの参照
+
   const table = document.createElement("table");
   table.className = "summary-collect-table";
 
-  // ── ヘッダー行 ──────────────────────────────────────────
   const thead = document.createElement("thead");
-  const hRow  = document.createElement("tr");
 
-  // 全選択チェックボックス
+  // ── 合算チェック行（スライド列の上に配置）──────────────
+  const mergeRow = document.createElement("tr");
+  // チェック列・項目列・合計列・単位列のセルは空
+  ["summary-th--check", "summary-th summary-th--sticky", "summary-th--total", "summary-th--unit"]
+    .forEach((cls) => {
+      mergeRow.appendChild(Object.assign(document.createElement("th"), { className: cls }));
+    });
+
+  // スライド列のみ（先頭は合算なし）
+  slideData.forEach((_, i) => {
+    const th = document.createElement("th");
+    th.className = "summary-th summary-th--merge";
+    if (i > 0) {
+      const cb = Object.assign(document.createElement("input"), {
+        type: "checkbox", checked: false, title: "前の列と合算"
+      });
+      cb.addEventListener("change", () => {
+        mergeChecked[i] = cb.checked;
+        rebuildTbody();
+      });
+      mergeCheckboxes.push({ index: i, cb });
+      th.appendChild(cb);
+    }
+    mergeRow.appendChild(th);
+  });
+
+  // mergeRow の列順を「チェック・項目・S1・S2...・合計・単位」に合わせる
+  // → 現在の順序がずれているので正しく組み直す
+  const mergeRow2 = document.createElement("tr");
+
+  // チェック列（空）
+  mergeRow2.appendChild(Object.assign(document.createElement("th"), {
+    className: "summary-th summary-th--check"
+  }));
+  // 項目列（空）
+  mergeRow2.appendChild(Object.assign(document.createElement("th"), {
+    className: "summary-th"
+  }));
+  // スライド列（先頭以外にチェックボックス）
+  slideData.forEach((_, i) => {
+    const th = document.createElement("th");
+    th.className = "summary-th summary-th--merge";
+    if (i > 0) {
+      const cb = Object.assign(document.createElement("input"), {
+        type: "checkbox", checked: false, title: "前の列と合算"
+      });
+      cb.addEventListener("change", () => {
+        mergeChecked[i] = cb.checked;
+        rebuildTbody();
+      });
+      th.appendChild(cb);
+    }
+    mergeRow2.appendChild(th);
+  });
+  // 合計列（空）・単位列（空）
+  mergeRow2.appendChild(Object.assign(document.createElement("th"), { className: "summary-th" }));
+  mergeRow2.appendChild(Object.assign(document.createElement("th"), { className: "summary-th" }));
+
+  thead.appendChild(mergeRow2);
+
+  // ── ヘッダー行 ──────────────────────────────────────────
+  const hRow = document.createElement("tr");
+
   const allCheckTh = document.createElement("th");
   allCheckTh.className = "summary-th summary-th--check";
   const allCheck = Object.assign(document.createElement("input"), { type: "checkbox", checked: true });
@@ -1361,92 +1450,158 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
   hRow.appendChild(Object.assign(document.createElement("th"), {
     className: "summary-th summary-th--sticky", textContent: "項目"
   }));
-  slideData.forEach(({ slideName }) => {
-    hRow.appendChild(Object.assign(document.createElement("th"), {
-      className: "summary-th", textContent: slideName
-    }));
-  });
-  hRow.appendChild(Object.assign(document.createElement("th"), {
-    className: "summary-th summary-th--total", textContent: "合計"
+
+  // スライド列ヘッダーは後で rebuildTbody で動的に更新するため、
+  // thead の hRow ヘッダーも再描画対象にする
+  // → ヘッダーも tbody 同様に rebuildTbody で管理する
+  const dynamicHead = document.createElement("tr"); // 動的ヘッダー行（スライド〜単位）
+  dynamicHead.appendChild(Object.assign(document.createElement("th"), {
+    className: "summary-th summary-th--check"
   }));
-  hRow.appendChild(Object.assign(document.createElement("th"), {
-    className: "summary-th summary-th--unit", textContent: "単位"
+  dynamicHead.appendChild(Object.assign(document.createElement("th"), {
+    className: "summary-th summary-th--sticky", textContent: "項目"
   }));
-  thead.appendChild(hRow);
+
+  thead.appendChild(dynamicHead);
   table.appendChild(thead);
 
-  // ── データ行 ─────────────────────────────────────────────
   const tbody = document.createElement("tbody");
-  const rowCheckboxes = [];
-
-  entries.forEach(({ name, originalIndex, unit }, i) => {
-    const tr = document.createElement("tr");
-
-    // チェックボックス列
-    const checkTd = document.createElement("td");
-    checkTd.className = "summary-td summary-td--check";
-    const cb = Object.assign(document.createElement("input"), {
-      type: "checkbox", checked: true
-    });
-    cb.dataset.entryIndex = String(i);
-    // 個別チェック変更時に全選択チェックの状態を更新
-    cb.addEventListener("change", () => {
-      const all   = rowCheckboxes.every((c) => c.checked);
-      const none  = rowCheckboxes.every((c) => !c.checked);
-      allCheck.checked       = all;
-      allCheck.indeterminate = !all && !none;
-    });
-    rowCheckboxes.push(cb);
-    checkTd.appendChild(cb);
-    tr.appendChild(checkTd);
-
-    tr.appendChild(Object.assign(document.createElement("td"), {
-      className: "summary-td summary-td--sticky", textContent: name
-    }));
-
-    const values = slideData.map(({ rows }) => getValue(rows, originalIndex));
-    values.forEach((v) => {
-      tr.appendChild(Object.assign(document.createElement("td"), {
-        className: "summary-td summary-td--value", textContent: v
-      }));
-    });
-
-    // 合計列
-    const nums   = values.map((v) => parseFloat(v)).filter((v) => !isNaN(v));
-    const places = maxDecimalPlacesFromNumbers(nums);
-    const total  = nums.length > 0 ? sum(nums).toFixed(places) : "";
-    tr.appendChild(Object.assign(document.createElement("td"), {
-      className: "summary-td summary-td--value summary-td--total", textContent: total
-    }));
-
-    // 単位列
-    tr.appendChild(Object.assign(document.createElement("td"), {
-      className: "summary-td summary-td--unit-cell", textContent: unit
-    }));
-
-    tbody.appendChild(tr);
-  });
-
-  // 全選択チェック変更時に全行を連動
-  allCheck.addEventListener("change", () => {
-    rowCheckboxes.forEach((cb) => { cb.checked = allCheck.checked; });
-  });
-
   table.appendChild(tbody);
   tableWrap.appendChild(table);
 
-  // チェック行のみTSV生成する関数
-  const getCheckedTsv = () =>
-    entries
-      .filter((_, i) => rowCheckboxes[i]?.checked)
+  const rowCheckboxes = [];
+
+  // ── 再描画関数 ───────────────────────────────────────────
+  function rebuildTbody() {
+    // グループを計算
+    const groups = computeGroups(slideData, mergeChecked);
+
+    // 動的ヘッダー行を再構築
+    // 既存の動的列（スライド〜単位）を削除して再追加
+    while (dynamicHead.children.length > 2) dynamicHead.removeChild(dynamicHead.lastChild);
+    groups.forEach(({ label }) => {
+      dynamicHead.appendChild(Object.assign(document.createElement("th"), {
+        className: "summary-th", textContent: label
+      }));
+    });
+    dynamicHead.appendChild(Object.assign(document.createElement("th"), {
+      className: "summary-th summary-th--total", textContent: "合計"
+    }));
+    dynamicHead.appendChild(Object.assign(document.createElement("th"), {
+      className: "summary-th summary-th--unit", textContent: "単位"
+    }));
+
+    // tbody を再構築
+    tbody.innerHTML = "";
+    rowCheckboxes.length = 0;
+
+    entries.forEach(({ name, originalIndex, unit }, i) => {
+      const tr = document.createElement("tr");
+
+      // チェックボックス
+      const checkTd = document.createElement("td");
+      checkTd.className = "summary-td summary-td--check";
+      const cb = Object.assign(document.createElement("input"), {
+        type: "checkbox", checked: rowCheckboxStates[i] !== false
+      });
+      cb.addEventListener("change", () => {
+        rowCheckboxStates[i] = cb.checked;
+        const all  = rowCheckboxes.every((c) => c.checked);
+        const none = rowCheckboxes.every((c) => !c.checked);
+        allCheck.checked       = all;
+        allCheck.indeterminate = !all && !none;
+      });
+      rowCheckboxes.push(cb);
+      checkTd.appendChild(cb);
+      tr.appendChild(checkTd);
+
+      tr.appendChild(Object.assign(document.createElement("td"), {
+        className: "summary-td summary-td--sticky", textContent: name
+      }));
+
+      // グループ列の値（グループ内スライドの合計）
+      const groupValues = groups.map(({ indices }) => {
+        const nums = indices
+          .map((si) => parseFloat(getValue(slideData[si].rows, originalIndex)))
+          .filter((v) => !isNaN(v));
+        return nums.length > 0 ? sum(nums) : null;
+      });
+
+      // 全グループの値から最大小数桁数を決定
+      const allNums = groupValues.filter((v) => v !== null);
+      const places  = maxDecimalPlacesFromNumbers(allNums);
+
+      groupValues.forEach((v) => {
+        tr.appendChild(Object.assign(document.createElement("td"), {
+          className: "summary-td summary-td--value",
+          textContent: v !== null ? v.toFixed(places) : ""
+        }));
+      });
+
+      // 合計列（全スライドの合計）
+      const totalNums = slideData
+        .map(({ rows }) => parseFloat(getValue(rows, originalIndex)))
+        .filter((v) => !isNaN(v));
+      const totalPlaces = maxDecimalPlacesFromNumbers(totalNums);
+      const total = totalNums.length > 0 ? sum(totalNums).toFixed(totalPlaces) : "";
+      tr.appendChild(Object.assign(document.createElement("td"), {
+        className: "summary-td summary-td--value summary-td--total", textContent: total
+      }));
+
+      // 単位列
+      tr.appendChild(Object.assign(document.createElement("td"), {
+        className: "summary-td summary-td--unit-cell", textContent: unit
+      }));
+
+      tbody.appendChild(tr);
+    });
+
+    // 全選択チェックの状態を更新
+    const all  = rowCheckboxes.every((c) => c.checked);
+    const none = rowCheckboxes.every((c) => !c.checked);
+    allCheck.checked       = all;
+    allCheck.indeterminate = !all && !none;
+  }
+
+  // 行チェック状態を保持（再描画後も維持）
+  const rowCheckboxStates = entries.map(() => true);
+
+  allCheck.addEventListener("change", () => {
+    rowCheckboxes.forEach((cb, i) => {
+      cb.checked = allCheck.checked;
+      rowCheckboxStates[i] = allCheck.checked;
+    });
+  });
+
+  // 初期描画
+  rebuildTbody();
+
+  // チェック行のみTSV生成（現在のグループ状態を反映）
+  const getCheckedTsv = () => {
+    const groups = computeGroups(slideData, mergeChecked);
+    return entries
+      .filter((_, i) => rowCheckboxStates[i] !== false)
       .map(({ name, originalIndex, unit }) => {
-        const values = slideData.map(({ rows }) => getValue(rows, originalIndex));
-        const nums   = values.map((v) => parseFloat(v)).filter((v) => !isNaN(v));
-        const places = maxDecimalPlacesFromNumbers(nums);
-        const total  = nums.length > 0 ? sum(nums).toFixed(places) : "";
-        return [name, ...values, total, unit].join("\t");
+        const groupValues = groups.map(({ indices }) => {
+          const nums = indices
+            .map((si) => parseFloat(getValue(slideData[si].rows, originalIndex)))
+            .filter((v) => !isNaN(v));
+          return nums.length > 0 ? sum(nums) : null;
+        });
+        const allNums = groupValues.filter((v) => v !== null);
+        const places  = maxDecimalPlacesFromNumbers(allNums);
+        const cols    = groupValues.map((v) => v !== null ? v.toFixed(places) : "");
+
+        const totalNums = slideData
+          .map(({ rows }) => parseFloat(getValue(rows, originalIndex)))
+          .filter((v) => !isNaN(v));
+        const totalPlaces = maxDecimalPlacesFromNumbers(totalNums);
+        const total = totalNums.length > 0 ? sum(totalNums).toFixed(totalPlaces) : "";
+
+        return [name, ...cols, total, unit].join("\t");
       })
       .join("\n");
+  };
 
   return { tableWrap, getCheckedTsv };
 }

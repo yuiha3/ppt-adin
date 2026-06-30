@@ -1156,3 +1156,20 @@ tbody tr:nth-child(even) .summary-td--sticky {
   cursor: pointer;
   accent-color: #0070c0;
 }
+
+/* 合算チェック行 */
+.summary-th--merge {
+  padding: 3px 4px;
+  text-align: center;
+  font-size: 10px;
+  color: #9ca3af;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+}
+
+.summary-th--merge input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+  accent-color: #f59e0b;
+}
