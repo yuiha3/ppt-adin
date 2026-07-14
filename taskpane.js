@@ -957,6 +957,19 @@ async function outputTableToSlide(includeQuantity = false) {
       const table = tableShape.getTable();
       table.load();
       await context.sync();
+
+      // ヘッダー行（r=0）の各セルに下線のみ明示設定（テーブルスタイルの枠線を上書き）
+      for (let c = 0; c < 3; c++) {
+        const hCell = table.getCellOrNullObject(0, c);
+        if (!hCell.isNullObject) {
+          hCell.borderTop.visible    = false;
+          hCell.borderLeft.visible   = false;
+          hCell.borderRight.visible  = false;
+          hCell.borderBottom.visible = true;
+        }
+      }
+
+      // データ行の数量列を中央寄せ
       for (let r = 1; r < rowCount; r++) {
         if (rows[r - 1].pinBottom) continue;
         const cell = table.getCellOrNullObject(r, 1);
