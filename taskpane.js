@@ -1968,11 +1968,18 @@ function compressNumberRanges(numbers) {
 
 /**
  * 小数点以下3桁目を繰り上げて2桁にする。
- * Math.ceil の前に浮動小数点誤差（例: 0.1*0.1=0.010000000000000002）を
- * 先に丸めることで誤った繰り上がりを防ぐ。
+ * Math.ceil と浮動小数点演算を組み合わせると
+ * 0.07 * 100 = 7.000000000000001 のような誤差が生じ
+ * Math.ceil が誤った繰り上がりをするため、
+ * toFixed(3) で文字列化して3桁目を取り出す方式で判定する。
  */
 function ceilAt2(value) {
-  return Math.ceil(Math.round(value * 1e10) / 1e10 * 100) / 100;
+  const s = value.toFixed(3);                         // 例: "0.070" "0.015"
+  const thirdDecimal = parseInt(s.slice(-1), 10);     // 3桁目の数字
+  const twoDecimal   = parseFloat(s.slice(0, -1));    // 小数点以下2桁まで
+  return thirdDecimal > 0
+    ? parseFloat((twoDecimal + 0.01).toFixed(2))
+    : parseFloat(twoDecimal.toFixed(2));
 }
 
 function sum(numbers) {
