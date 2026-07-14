@@ -37,7 +37,7 @@ const DEFECT_GROUPS = [
     label: "その他",
     items: [
       { content: "エフロ",     unit: "箇所", prefixKey: "efuro" },
-      { content: "爆裂",       unit: "箇所", prefixKey: "ba" },
+      { content: "爆裂",       unit: "箇所" },
       { content: "サビ",       unit: "箇所" },
       { content: "目地欠損",   unit: "箇所" },
       { content: "シール劣化", unit: "箇所" },
@@ -246,7 +246,6 @@ function initializeSummaryButtons() {
   bindClick("sumAreaByColorButton",             sumAreaBySelectedTextColor);
   bindClick("collectRedTextButton",             collectRedTextFromSlide);
   bindClick("sumEfuroButton",                   sumEfuroFromSlide);
-  bindClick("sumBakuretsuButton",               sumBakuretsuFromSlide);
 
   bindClick("collectSummaryButton", collectSummaryTables);
 
@@ -632,11 +631,10 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
   // noUnit行（その他・写真番号）は項目名+削除ボタンのみ
   if (rowData.noUnit) return rowEl;
 
-  // prefixKey で爆裂（ba）・エフロ（efuro）を判定
-  const isBaRow    = rowData.prefixKey === "ba";
+  // prefixKey でエフロ（efuro）のみ判定（爆裂は通常行として扱う）
   const isEfuroRow = rowData.prefixKey === "efuro";
 
-  if (!isBaRow && !isEfuroRow) {
+  if (!isEfuroRow) {
     // 2行目：文字色・背景色の丸ボタン
     const colorRow = document.createElement("div");
     colorRow.className = "autosum-row__colors";
@@ -667,9 +665,9 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
 
   // 3行目：チェックボックス（行の種類に応じて切り替え）
   // チェック状態は元DOM行の dataset に保存して、ポップアップ再生成時に復元する
-  const checkKey   = isBaRow ? "ba" : isEfuroRow ? "efuro" : "area";
-  // エフロ・爆裂行はチェックをデフォルトでオン（初回のみ。dataset保存後はそちらを優先）
-  const defaultCheck = isBaRow || isEfuroRow;
+  const checkKey   = isEfuroRow ? "efuro" : "area";
+  // エフロ行はチェックをデフォルトでオン（初回のみ。dataset保存後はそちらを優先）
+  const defaultCheck = isEfuroRow;
   const savedCheck = domRow?.dataset[`check_${checkKey}`] !== undefined
     ? domRow.dataset[`check_${checkKey}`] === "true"
     : defaultCheck;
@@ -693,7 +691,6 @@ function makeAutoSumRow(rowData, index, tableRowEls) {
   const checkRow = document.createElement("div");
   checkRow.className = "autosum-row__checks";
   checkRow.append(
-    isBaRow    ? makeCheck("autosum-ba-checkbox",    "バを集計", savedCheck) :
     isEfuroRow ? makeCheck("autosum-efuro-checkbox", "エを集計", savedCheck) :
                  makeCheck("autosum-area-checkbox",  "面積計算", savedCheck)
   );
@@ -733,16 +730,14 @@ async function runAutoSum(activePopupRows, tableRowEls) {
     const fontColor   = popupRow.querySelector(".color-dot[data-color-type='font']")?.dataset.color ?? null;
     const fillColor   = popupRow.querySelector(".color-dot[data-color-type='fill']")?.dataset.color ?? null;
     const isAreaMode  = popupRow.querySelector(".autosum-area-checkbox")?.checked  ?? false;
-    const isBaMode    = popupRow.querySelector(".autosum-ba-checkbox")?.checked    ?? false;
     const isEfuroMode = popupRow.querySelector(".autosum-efuro-checkbox")?.checked ?? false;
 
     try {
-      if (isBaMode || isEfuroMode) {
-        const prefix = isBaMode ? "バ" : "エ";
+      if (isEfuroMode) {
         await PowerPoint.run(async (context) => {
           const slide = await getCurrentSlide(context);
           if (!slide) return;
-          const { numbers } = await collectPrefixNumbers(context, slide, prefix);
+          const { numbers } = await collectPrefixNumbers(context, slide, "エ");
           quantityInput.value = numbers.length > 0
             ? sum(numbers).toFixed(maxDecimalPlacesFromNumbers(numbers))
             : "0";
@@ -1163,8 +1158,7 @@ async function sumPrefixNumbersFromSlide(prefix, label) {
   });
 }
 
-async function sumEfuroFromSlide()     { await sumPrefixNumbersFromSlide("エ", "エ"); }
-async function sumBakuretsuFromSlide() { await sumPrefixNumbersFromSlide("バ", "バ"); }
+async function sumEfuroFromSlide() { await sumPrefixNumbersFromSlide("エ", "エ"); }
 
 // ─── 集計まとめ ──────────────────────────────────────────
 
