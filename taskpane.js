@@ -386,7 +386,7 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false, prefixK
     handleCol,
     createTableInput({ value: content, className: "contentInput" }),
     quantityEl,
-    ...(noUnit ? [] : [createTableInput({ value: unit, className: "unitInput", list: "unitOptions" })]),
+    ...(noUnit ? [] : [createUnitInput(unit)]),
     deleteButton
   );
 
@@ -399,6 +399,60 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false, prefixK
   tableRows.insertBefore(row, anchor);
 
   setupDragAndDrop(row, tableRows);
+}
+
+// 単位入力欄（自由入力 + カスタムドロップダウン）
+const UNIT_OPTIONS = ["枚数", "長さ（m）", "面積（㎡）", "箇所"];
+
+function createUnitInput(value = "") {
+  const wrapper = document.createElement("div");
+  wrapper.className = "unit-input-wrapper";
+
+  const input = Object.assign(document.createElement("input"), {
+    type: "text", value,
+    className: "tableInput unitInput",
+    placeholder: "単位"
+  });
+
+  const btn = Object.assign(document.createElement("button"), {
+    type: "button", className: "unit-dropdown-btn", textContent: "▾"
+  });
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeUnitDropdown();
+
+    const dropdown = document.createElement("ul");
+    dropdown.id = "unitDropdown";
+    dropdown.className = "unit-dropdown";
+
+    UNIT_OPTIONS.forEach((opt) => {
+      const li = Object.assign(document.createElement("li"), {
+        className: "unit-dropdown-item", textContent: opt
+      });
+      li.addEventListener("click", () => {
+        input.value = opt;
+        closeUnitDropdown();
+      });
+      dropdown.appendChild(li);
+    });
+
+    document.body.appendChild(dropdown);
+
+    // ボタンの位置に合わせてドロップダウンを表示
+    const rect = btn.getBoundingClientRect();
+    dropdown.style.top  = (rect.bottom + window.scrollY) + "px";
+    dropdown.style.left = (rect.left   + window.scrollX - dropdown.offsetWidth + btn.offsetWidth) + "px";
+
+    setTimeout(() => document.addEventListener("click", closeUnitDropdown, { once: true }), 0);
+  });
+
+  wrapper.append(input, btn);
+  return wrapper;
+}
+
+function closeUnitDropdown() {
+  document.getElementById("unitDropdown")?.remove();
 }
 
 // ─── ドラッグ&ドロップ ────────────────────────────────────
@@ -443,14 +497,13 @@ function enforcePinnedRows(tableRows) {
   tableRows.querySelectorAll("[data-pin-bottom]").forEach((el) => tableRows.appendChild(el));
 }
 
-function createTableInput({ value = "", className = "", placeholder = "", inputmode = "", list = "" }) {
+function createTableInput({ value = "", className = "", placeholder = "", inputmode = "" }) {
   const input = document.createElement("input");
   input.type = "text";
   input.className = ["tableInput", className].filter(Boolean).join(" ");
   input.value = value;
   input.placeholder = placeholder;
   if (inputmode) input.inputMode = inputmode;
-  if (list) input.setAttribute("list", list);
   return input;
 }
 
@@ -919,7 +972,8 @@ function collectTableRows() {
     const pinBottom = row.dataset.pinBottom === "true";
     const content   = inputs[0]?.value ?? "";
     const quantity  = inputs[1]?.value ?? "";
-    const unit      = noUnit ? "" : (inputs[2]?.value ?? "");
+    // unit-input-wrapper 内の input から取得（wrapper がない場合は inputs[2] にフォールバック）
+    const unit      = noUnit ? "" : (row.querySelector(".unit-input-wrapper input")?.value ?? inputs[2]?.value ?? "");
     const prefixKey = row.dataset.prefixKey ?? null;
     return { content, quantity, unit, noUnit, pinBottom, prefixKey };
   }).filter((r) => r.content || r.quantity);
