@@ -697,7 +697,7 @@ async function runAutoSum(activePopupRows, tableRowEls) {
         quantityInput.value = "0";
       } else if (isAreaMode) {
         const result = await sumAreaByColorDirect(fontColor, fillColor);
-        quantityInput.value = (result ? Math.ceil(result * 100) / 100 : 0).toFixed(2);
+        quantityInput.value = (result ? ceilAt2(result) : 0).toFixed(2);
       } else {
         const result = await sumNumbersByColorDirect(fontColor, fillColor);
         quantityInput.value = result !== null ? result.total.toFixed(result.places) : "0";
@@ -1139,7 +1139,7 @@ async function collectSummaryTables() {
         if (shape.type === PowerPoint.ShapeType.table) {
           const table = shape.getTable();
           table.load("rowCount,columnCount");
-          tableShapes.push({ slide, slideIndex: si, table });
+          tableShapes.push({ slideIndex: si, table });
         }
       }
     }
@@ -1148,17 +1148,17 @@ async function collectSummaryTables() {
     // ── ③ 1行目0列目が「＜集計＞」の表を対象に全セルtextをロード ──
     const candidates = [];
 
-    for (const { slide, slideIndex, table } of tableShapes) {
+    for (const { slideIndex, table } of tableShapes) {
       if (table.rowCount < 2 || table.columnCount < 1) continue;
       const firstCell = table.getCellOrNullObject(0, 0);
       firstCell.load("text");
-      candidates.push({ slide, slideIndex, table, firstCell });
+      candidates.push({ slideIndex, table, firstCell });
     }
     await context.sync();
 
     // ＜集計＞のものだけに絞って全セルをロード
     const targetTables = [];
-    for (const { slide, slideIndex, table, firstCell } of candidates) {
+    for (const { slideIndex, table, firstCell } of candidates) {
       if (firstCell.isNullObject || firstCell.text.trim() !== "＜集計＞") continue;
       const cells = [];
       for (let r = 0; r < table.rowCount; r++) {
@@ -1170,7 +1170,7 @@ async function collectSummaryTables() {
         }
         cells.push(row);
       }
-      targetTables.push({ slide, slideIndex, table, cells });
+      targetTables.push({ slideIndex, table, cells });
     }
     await context.sync();
 
@@ -1197,19 +1197,25 @@ async function collectSummaryTables() {
     const baseItems = itemLists[0];
     const baseUnits = unitLists[0];
 
-    const itemMismatchMessage = buildListMismatchMessage(slideData, itemLists, baseItems, "項目");
-    if (itemMismatchMessage) {
+    const itemsMatch = itemLists.every(
+      (items) => items.length === baseItems.length &&
+                 items.every((item, i) => item === baseItems[i])
+    );
+    if (!itemsMatch) {
       showSummaryStatus(
-        "スライド間で項目の順番または内容が一致しないため表示できません。 " + itemMismatchMessage,
+        "スライド間で項目の順番または内容が一致しないため表示できません。",
         "error"
       );
       return;
     }
 
-    const unitMismatchMessage = buildListMismatchMessage(slideData, unitLists, baseUnits, "単位");
-    if (unitMismatchMessage) {
+    const unitsMatch = unitLists.every(
+      (units) => units.length === baseUnits.length &&
+                 units.every((unit, i) => unit === baseUnits[i])
+    );
+    if (!unitsMatch) {
       showSummaryStatus(
-        "スライド間で単位が一致しないため表示できません。 " + unitMismatchMessage,
+        "スライド間で単位が一致しないため表示できません。",
         "error"
       );
       return;
@@ -1222,41 +1228,6 @@ async function collectSummaryTables() {
       "success"
     );
   });
-}
-
-function buildListMismatchMessage(slideData, lists, baseList, label) {
-  const details = [];
-
-  lists.forEach((list, i) => {
-    if (i === 0) return;
-
-    const diffs = [];
-    if (list.length !== baseList.length) {
-      diffs.push(`${label}数 ${baseList.length}→${list.length}`);
-    }
-
-    const max = Math.max(list.length, baseList.length);
-    for (let row = 0; row < max && diffs.length < 4; row++) {
-      const baseValue = baseList[row] ?? "";
-      const value     = list[row] ?? "";
-      if (baseValue !== value) {
-        diffs.push(`${row + 1}行目 ${formatMismatchValue(baseValue)}→${formatMismatchValue(value)}`);
-      }
-    }
-
-    if (diffs.length > 0) {
-      details.push(`${slideData[i].slideName}: ${diffs.join("、")}`);
-    }
-  });
-
-  if (details.length === 0) return "";
-  const visible = details.slice(0, 5).join(" / ");
-  return details.length > 5 ? `${visible} / ほか${details.length - 5}件` : visible;
-}
-
-function formatMismatchValue(value) {
-  const text = String(value ?? "").replace(/\s+/g, " ").trim() || "空欄";
-  return `「${text.length > 24 ? text.slice(0, 24) + "..." : text}」`;
 }
 
 /**
@@ -1285,8 +1256,8 @@ function renderSummaryAll(baseItems, baseUnits, slideData) {
 
   // ── 通常項目ブロック（合計・単位列付き）────────────────
   if (normalEntries.length > 0) {
-    const { tableWrap, getCheckedTsv, mergeButton } = buildNormalSummaryTable(normalEntries, slideData, getValue);
-    wrap.appendChild(makeSectionHeader("集計結果", mergeButton));
+    wrap.appendChild(makeSectionLabel("集計結果"));
+    const { tableWrap, getCheckedTsv } = buildNormalSummaryTable(normalEntries, slideData, getValue);
     wrap.appendChild(tableWrap);
 
     // Excel貼り付け用コピーボタン（チェック行のみ・合計・単位列を含む）
@@ -1322,154 +1293,24 @@ function renderSummaryAll(baseItems, baseUnits, slideData) {
 
   // ── 写真番号ブロック ──────────────────────────────────
   if (photoEntries.length > 0) {
-    const { photoWrap, mergeButton } = buildPhotoSummaryBlock(photoEntries, slideData, getValue);
-    wrap.appendChild(makeSectionHeader("写真番号", mergeButton));
-    wrap.appendChild(photoWrap);
-  }
-}
+    wrap.appendChild(makeSectionLabel("写真番号"));
+    const photoWrap = document.createElement("div");
+    photoWrap.className = "summary-photo-list";
 
-function buildIndividualGroups(slideData) {
-  return slideData.map(({ slideName }, i) => ({ indices: [i], label: slideName }));
-}
-
-function buildGroupsFromSelectedRange(slideData, selectedIndices) {
-  const min = selectedIndices[0];
-  const max = selectedIndices[selectedIndices.length - 1];
-  const groups = [];
-
-  for (let i = 0; i < slideData.length; i++) {
-    if (i === min) {
-      const indices = Array.from({ length: max - min + 1 }, (_, offset) => min + offset);
-      groups.push({
-        indices,
-        label: formatSlideGroupLabel(slideData, indices)
-      });
-      i = max;
-    } else {
-      groups.push({ indices: [i], label: slideData[i].slideName });
-    }
-  }
-
-  return groups;
-}
-
-function buildGroupsFromSelectedSet(slideData, selectedIndices) {
-  const selected = new Set(selectedIndices);
-  const firstSelected = selectedIndices[0];
-  const groups = [];
-
-  for (let i = 0; i < slideData.length; i++) {
-    if (i === firstSelected) {
-      groups.push({
-        indices: selectedIndices,
-        label: formatSlideGroupLabel(slideData, selectedIndices)
-      });
-    } else if (selected.has(i)) {
-      continue;
-    } else {
-      groups.push({ indices: [i], label: slideData[i].slideName });
-    }
-  }
-
-  return groups;
-}
-
-function formatSlideGroupLabel(slideData, indices) {
-  const numbers = indices.map((i) => {
-    const match = String(slideData[i].slideName).match(/^スライド(\d+)$/);
-    return match ? match[1] : null;
-  });
-
-  return numbers.every(Boolean)
-    ? `スライド${numbers.join(",")}`
-    : indices.map((i) => slideData[i].slideName).join(",");
-}
-
-function getNumericCellValues(slideData, slideIndices, originalIndex, getValue) {
-  return slideIndices
-    .map((si) => {
-      const raw = getValue(slideData[si].rows, originalIndex);
-      const value = parseFloat(raw);
-      return isNaN(value) ? null : { raw, value };
-    })
-    .filter(Boolean);
-}
-
-function maxDecimalPlacesFromValues(values) {
-  return values.reduce((max, { raw, value }) => {
-    const places = getDecimalPlaces(String(raw).trim());
-    return Math.max(max, places ?? getDecimalPlaces(String(value)) ?? 0);
-  }, 0);
-}
-
-function formatSumFromValues(values) {
-  return values.length > 0
-    ? sum(values.map(({ value }) => value)).toFixed(maxDecimalPlacesFromValues(values))
-    : "";
-}
-
-function buildSummaryRowValues(slideData, groups, originalIndex, getValue) {
-  const groupValues = groups.map(({ indices }) =>
-    formatSumFromValues(getNumericCellValues(slideData, indices, originalIndex, getValue))
-  );
-  const totalValue = formatSumFromValues(
-    getNumericCellValues(slideData, slideData.map((_, i) => i), originalIndex, getValue)
-  );
-  return { groupValues, totalValue };
-}
-
-function buildPhotoSummaryBlock(photoEntries, slideData, getValue) {
-  const photoWrap = document.createElement("div");
-  photoWrap.className = "summary-photo-list";
-
-  const selected = slideData.map(() => false);
-  let currentGroups = buildIndividualGroups(slideData);
-  let groupedPhotoValues = new Map();
-
-  const mergeButton = Object.assign(document.createElement("button"), {
-    type: "button",
-    className: "summary-merge-btn",
-    textContent: "選択中の写真番号をまとめる"
-  });
-
-  const getGroupValue = (indices, originalIndex) => {
-    const key = makePhotoGroupKey(indices);
-    if (groupedPhotoValues.has(key)) return groupedPhotoValues.get(key);
-    return normalizePhotoText(getValue(slideData[indices[0]].rows, originalIndex));
-  };
-
-  const renderRows = () => {
-    photoWrap.innerHTML = "";
-
-    currentGroups.forEach(({ indices, label }) => {
+    slideData.forEach(({ slideName, rows }) => {
       photoEntries.forEach(({ originalIndex }) => {
-        const value = getGroupValue(indices, originalIndex);
+        const value = getValue(rows, originalIndex);
         const row = document.createElement("div");
         row.className = "summary-photo-row";
 
-        const cb = Object.assign(document.createElement("input"), {
-          type: "checkbox",
-          className: "summary-photo-check",
-          checked: indices.every((si) => selected[si]),
-          title: `${label}をまとめ対象にする`
-        });
-        cb.addEventListener("change", () => {
-          indices.forEach((si) => {
-            selected[si] = cb.checked;
-          });
-        });
-
-        row.append(
-          cb,
-          Object.assign(document.createElement("span"), {
-            className: "summary-photo-slide", textContent: label + "："
-          })
-        );
-
+        row.appendChild(Object.assign(document.createElement("span"), {
+          className: "summary-photo-slide", textContent: slideName + "："
+        }));
         const valueEl = Object.assign(document.createElement("span"), {
-          className: "summary-photo-value",
-          textContent: value || "なし"
+          className: "summary-photo-value"
         });
+        // \n（段落区切り）と \v（ラインブレーク）を改行として表示
+        valueEl.textContent = (value || "なし").replace(/\v/g, "\n");
         row.appendChild(valueEl);
 
         const copyBtn = Object.assign(document.createElement("button"), {
@@ -1490,58 +1331,33 @@ function buildPhotoSummaryBlock(photoEntries, slideData, getValue) {
         photoWrap.appendChild(row);
       });
     });
-  };
 
-  mergeButton.addEventListener("click", async () => {
-    const selectedIndices = selected
-      .map((checked, i) => checked ? i : null)
-      .filter((i) => i !== null);
+    wrap.appendChild(photoWrap);
+  }
+}
 
-    if (selectedIndices.length < 2) {
-      showSummaryStatus("まとめる写真番号を2つ以上選択してください。", "error");
-      return;
-    }
-
-    mergeButton.disabled = true;
-    showSummaryStatus("選択中の写真番号を集計中...", "info");
-    try {
-      const outputLines = await collectGroupedCodesFromSlideData(slideData, selectedIndices, COLORS.BLACK);
-      const outputText = outputLines.length > 0 ? outputLines.join("\n") : "なし";
-      currentGroups = buildGroupsFromSelectedSet(slideData, selectedIndices);
-      groupedPhotoValues = new Map([[makePhotoGroupKey(selectedIndices), outputText]]);
-      renderRows();
-      showSummaryStatus("選択中の写真番号をまとめました。", "success");
-    } catch (error) {
-      console.error("写真番号まとめエラー:", error);
-      showSummaryStatus("写真番号の集計に失敗しました: " + (error?.message ?? error), "error");
-    } finally {
-      mergeButton.disabled = false;
+/**
+ * 隣接するスライド列のチェック状態から列グループを計算する。
+ * mergeChecked[i] が true の場合、slideData[i] を直前のグループに合算する。
+ * mergeChecked[0] は常に false（先頭列は合算対象なし）。
+ */
+function computeGroups(slideData, mergeChecked) {
+  const groups = [];
+  slideData.forEach(({ slideName }, i) => {
+    if (i > 0 && mergeChecked[i] && groups.length > 0) {
+      // 前のグループに合算
+      groups.at(-1).indices.push(i);
+    } else {
+      groups.push({ indices: [i], label: slideName });
     }
   });
-
-  renderRows();
-  return { photoWrap, mergeButton };
-}
-
-function normalizePhotoText(value) {
-  return String(value ?? "").replace(/\v/g, "\n").trim();
-}
-
-function makePhotoGroupKey(indices) {
-  return indices.join(",");
-}
-
-async function collectGroupedCodesFromSlideData(slideData, indices, targetTextColor) {
-  return PowerPoint.run(async (context) => {
-    const allSlides = context.presentation.slides;
-    allSlides.load("items");
-    await context.sync();
-
-    const slides = indices
-      .map((i) => allSlides.items[slideData[i].slideIndex])
-      .filter(Boolean);
-    return collectGroupedCodes(context, slides, targetTextColor);
+  // ラベルを「スライド2,3,4」形式に更新
+  groups.forEach((g) => {
+    if (g.indices.length > 1) {
+      g.label = g.indices.map((i) => slideData[i].slideName).join(",");
+    }
   });
+  return groups;
 }
 
 /**
@@ -1552,28 +1368,96 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
   const tableWrap = document.createElement("div");
   tableWrap.className = "summary-collect-wrap";
 
-  const mergeSelected = slideData.map(() => false);
-  let currentGroups = buildIndividualGroups(slideData);
-
-  const mergeButton = Object.assign(document.createElement("button"), {
-    type: "button",
-    className: "summary-merge-btn",
-    textContent: "選択列の結果を合算"
-  });
+  // mergeChecked[i]: slideData[i] を前の列グループに合算するか
+  // 先頭列(0)は合算不可のため常に false
+  const mergeChecked = slideData.map(() => false);
+  const mergeCheckboxes = []; // 合算チェックボックスの参照
 
   const table = document.createElement("table");
   table.className = "summary-collect-table";
 
   const thead = document.createElement("thead");
 
+  // ── 合算チェック行（スライド列の上に配置）──────────────
+  const mergeRow = document.createElement("tr");
+  // チェック列・項目列・合計列・単位列のセルは空
+  ["summary-th--check", "summary-th summary-th--sticky", "summary-th--total", "summary-th--unit"]
+    .forEach((cls) => {
+      mergeRow.appendChild(Object.assign(document.createElement("th"), { className: cls }));
+    });
+
+  // スライド列のみ（先頭は合算なし）
+  slideData.forEach((_, i) => {
+    const th = document.createElement("th");
+    th.className = "summary-th summary-th--merge";
+    if (i > 0) {
+      const cb = Object.assign(document.createElement("input"), {
+        type: "checkbox", checked: false, title: "前の列と合算"
+      });
+      cb.addEventListener("change", () => {
+        mergeChecked[i] = cb.checked;
+        rebuildTbody();
+      });
+      mergeCheckboxes.push({ index: i, cb });
+      th.appendChild(cb);
+    }
+    mergeRow.appendChild(th);
+  });
+
+  // mergeRow の列順を「チェック・項目・S1・S2...・合計・単位」に合わせる
+  // → 現在の順序がずれているので正しく組み直す
+  const mergeRow2 = document.createElement("tr");
+
+  // チェック列（空）
+  mergeRow2.appendChild(Object.assign(document.createElement("th"), {
+    className: "summary-th summary-th--check"
+  }));
+  // 項目列（空）
+  mergeRow2.appendChild(Object.assign(document.createElement("th"), {
+    className: "summary-th"
+  }));
+  // スライド列（先頭以外にチェックボックス）
+  slideData.forEach((_, i) => {
+    const th = document.createElement("th");
+    th.className = "summary-th summary-th--merge";
+    if (i > 0) {
+      const cb = Object.assign(document.createElement("input"), {
+        type: "checkbox", checked: false, title: "前の列と合算"
+      });
+      cb.addEventListener("change", () => {
+        mergeChecked[i] = cb.checked;
+        rebuildTbody();
+      });
+      th.appendChild(cb);
+    }
+    mergeRow2.appendChild(th);
+  });
+  // 合計列（空）・単位列（空）
+  mergeRow2.appendChild(Object.assign(document.createElement("th"), { className: "summary-th" }));
+  mergeRow2.appendChild(Object.assign(document.createElement("th"), { className: "summary-th" }));
+
+  thead.appendChild(mergeRow2);
+
   // ── ヘッダー行 ──────────────────────────────────────────
+  const hRow = document.createElement("tr");
+
   const allCheckTh = document.createElement("th");
   allCheckTh.className = "summary-th summary-th--check";
   const allCheck = Object.assign(document.createElement("input"), { type: "checkbox", checked: true });
   allCheckTh.appendChild(allCheck);
+  hRow.appendChild(allCheckTh);
 
+  hRow.appendChild(Object.assign(document.createElement("th"), {
+    className: "summary-th summary-th--sticky", textContent: "項目"
+  }));
+
+  // スライド列ヘッダーは後で rebuildTbody で動的に更新するため、
+  // thead の hRow ヘッダーも再描画対象にする
+  // → ヘッダーも tbody 同様に rebuildTbody で管理する
   const dynamicHead = document.createElement("tr"); // 動的ヘッダー行（スライド〜単位）
-  dynamicHead.appendChild(allCheckTh);
+  dynamicHead.appendChild(Object.assign(document.createElement("th"), {
+    className: "summary-th summary-th--check"
+  }));
   dynamicHead.appendChild(Object.assign(document.createElement("th"), {
     className: "summary-th summary-th--sticky", textContent: "項目"
   }));
@@ -1587,63 +1471,18 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
 
   const rowCheckboxes = [];
 
-  function makeGroupHeaderCell({ indices, label }) {
-    const th = document.createElement("th");
-    th.className = "summary-th";
-
-    const checks = document.createElement("div");
-    checks.className = "summary-slide-checks";
-    const cb = Object.assign(document.createElement("input"), {
-      type: "checkbox",
-      checked: indices.every((si) => mergeSelected[si]),
-      title: `${label}を合算対象にする`
-    });
-    cb.addEventListener("change", () => {
-      indices.forEach((si) => {
-        mergeSelected[si] = cb.checked;
-      });
-    });
-    checks.appendChild(cb);
-
-    th.append(
-      checks,
-      Object.assign(document.createElement("span"), {
-        className: "summary-slide-label",
-        textContent: label
-      })
-    );
-    return th;
-  }
-
-  mergeButton.addEventListener("click", () => {
-    const selectedIndices = mergeSelected
-      .map((checked, i) => checked ? i : null)
-      .filter((i) => i !== null);
-
-    if (selectedIndices.length < 2) {
-      showSummaryStatus("合算する列を2列以上選択してください。", "error");
-      return;
-    }
-
-    const min = selectedIndices[0];
-    const max = selectedIndices[selectedIndices.length - 1];
-    if (max - min + 1 !== selectedIndices.length) {
-      showSummaryStatus("選択列が連続していません。連続する列を選択してください。", "error");
-      return;
-    }
-
-    currentGroups = buildGroupsFromSelectedRange(slideData, selectedIndices);
-    rebuildTbody();
-    showSummaryStatus("選択列の結果を合算しました。", "success");
-  });
-
   // ── 再描画関数 ───────────────────────────────────────────
   function rebuildTbody() {
+    // グループを計算
+    const groups = computeGroups(slideData, mergeChecked);
+
     // 動的ヘッダー行を再構築
     // 既存の動的列（スライド〜単位）を削除して再追加
     while (dynamicHead.children.length > 2) dynamicHead.removeChild(dynamicHead.lastChild);
-    currentGroups.forEach((group) => {
-      dynamicHead.appendChild(makeGroupHeaderCell(group));
+    groups.forEach(({ label }) => {
+      dynamicHead.appendChild(Object.assign(document.createElement("th"), {
+        className: "summary-th", textContent: label
+      }));
     });
     dynamicHead.appendChild(Object.assign(document.createElement("th"), {
       className: "summary-th summary-th--total", textContent: "合計"
@@ -1680,17 +1519,33 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
         className: "summary-td summary-td--sticky", textContent: name
       }));
 
-      const { groupValues, totalValue } = buildSummaryRowValues(slideData, currentGroups, originalIndex, getValue);
+      // グループ列の値（グループ内スライドの合計）
+      const groupValues = groups.map(({ indices }) => {
+        const nums = indices
+          .map((si) => parseFloat(getValue(slideData[si].rows, originalIndex)))
+          .filter((v) => !isNaN(v));
+        return nums.length > 0 ? sum(nums) : null;
+      });
+
+      // 全グループの値から最大小数桁数を決定
+      const allNums = groupValues.filter((v) => v !== null);
+      const places  = maxDecimalPlacesFromNumbers(allNums);
 
       groupValues.forEach((v) => {
         tr.appendChild(Object.assign(document.createElement("td"), {
           className: "summary-td summary-td--value",
-          textContent: v
+          textContent: v !== null ? v.toFixed(places) : ""
         }));
       });
 
+      // 合計列（全スライドの合計）
+      const totalNums = slideData
+        .map(({ rows }) => parseFloat(getValue(rows, originalIndex)))
+        .filter((v) => !isNaN(v));
+      const totalPlaces = maxDecimalPlacesFromNumbers(totalNums);
+      const total = totalNums.length > 0 ? sum(totalNums).toFixed(totalPlaces) : "";
       tr.appendChild(Object.assign(document.createElement("td"), {
-        className: "summary-td summary-td--value summary-td--total", textContent: totalValue
+        className: "summary-td summary-td--value summary-td--total", textContent: total
       }));
 
       // 単位列
@@ -1723,16 +1578,32 @@ function buildNormalSummaryTable(entries, slideData, getValue) {
 
   // チェック行のみTSV生成（現在のグループ状態を反映）
   const getCheckedTsv = () => {
+    const groups = computeGroups(slideData, mergeChecked);
     return entries
       .filter((_, i) => rowCheckboxStates[i] !== false)
       .map(({ name, originalIndex, unit }) => {
-        const { groupValues, totalValue } = buildSummaryRowValues(slideData, currentGroups, originalIndex, getValue);
-        return [name, ...groupValues, totalValue, unit].join("\t");
+        const groupValues = groups.map(({ indices }) => {
+          const nums = indices
+            .map((si) => parseFloat(getValue(slideData[si].rows, originalIndex)))
+            .filter((v) => !isNaN(v));
+          return nums.length > 0 ? sum(nums) : null;
+        });
+        const allNums = groupValues.filter((v) => v !== null);
+        const places  = maxDecimalPlacesFromNumbers(allNums);
+        const cols    = groupValues.map((v) => v !== null ? v.toFixed(places) : "");
+
+        const totalNums = slideData
+          .map(({ rows }) => parseFloat(getValue(rows, originalIndex)))
+          .filter((v) => !isNaN(v));
+        const totalPlaces = maxDecimalPlacesFromNumbers(totalNums);
+        const total = totalNums.length > 0 ? sum(totalNums).toFixed(totalPlaces) : "";
+
+        return [name, ...cols, total, unit].join("\t");
       })
       .join("\n");
   };
 
-  return { tableWrap, getCheckedTsv, mergeButton };
+  return { tableWrap, getCheckedTsv };
 }
 
 /**
@@ -1787,14 +1658,6 @@ function makeSectionLabel(text) {
   return el;
 }
 
-function makeSectionHeader(text, actionEl = null) {
-  const header = document.createElement("div");
-  header.className = "summary-section-header";
-  header.appendChild(makeSectionLabel(text));
-  if (actionEl) header.appendChild(actionEl);
-  return header;
-}
-
 async function collectRedTextFromSlide() {
   setResult({ text: "赤文字を収集中..." });
 
@@ -1833,19 +1696,14 @@ async function sumAreaBySelectedTextColor() {
 
     if (hitIds.length > 0) { slide.setSelectedShapes(hitIds); await context.sync(); }
 
-    const resultStr = (Math.ceil(total * 100) / 100).toFixed(2);
+    const resultStr = ceilAt2(total).toFixed(2);
     setResult({ text: resultStr, color: selected.textColor, copyValue: resultStr });
   });
 }
 
 function extractAreaValues(text) {
   let total = 0;
-  const normalized = String(text ?? "")
-    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
-    .replace(/[．。]/g, ".")
-    .replace(/[×＊]/g, "x");
-
-  for (const m of normalized.matchAll(/(\d+(?:\.\d+)?)\s*[xX]\s*(\d+(?:\.\d+)?)/g)) {
+  for (const m of text.matchAll(/(\S{3})x(\S+)/g)) {
     const a = parseFloat(m[1]);
     const b = parseFloat(m[2]);
     if (!isNaN(a) && !isNaN(b)) total += a * b;
@@ -2106,6 +1964,15 @@ function compressNumberRanges(numbers) {
   }
 
   return ranges.join(", ");
+}
+
+/**
+ * 小数点以下3桁目を繰り上げて2桁にする。
+ * Math.ceil の前に浮動小数点誤差（例: 0.1*0.1=0.010000000000000002）を
+ * 先に丸めることで誤った繰り上がりを防ぐ。
+ */
+function ceilAt2(value) {
+  return Math.ceil(Math.round(value * 1e10) / 1e10 * 100) / 100;
 }
 
 function sum(numbers) {
