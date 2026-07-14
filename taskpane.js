@@ -898,7 +898,7 @@ async function outputTableToSlide(includeQuantity = false) {
     const rowHeight = 13.5;
 
     const solidBorder = { color: "000000", dashStyle: "solid", weight: 1 };
-    const noBorder    = { color: "000000", dashStyle: "solid", weight: 0 };
+    const noBorder    = { color: "FFFFFF", dashStyle: "solid", weight: 1 };  // 白色で視覚的に非表示
 
     const mergedAreas = rows
       .map((r, i) => r.noUnit ? { rowIndex: i + 1, columnIndex: 1, rowCount: 1, columnCount: 2 } : null)
@@ -958,14 +958,14 @@ async function outputTableToSlide(includeQuantity = false) {
       table.load();
       await context.sync();
 
-      // ヘッダー行（r=0）の各セルに下線のみ明示設定（テーブルスタイルの枠線を上書き）
+      // ヘッダー行（r=0）の上・左・右を白色に設定（PDF出力でも枠線が見えないようにする）
       for (let c = 0; c < 3; c++) {
         const hCell = table.getCellOrNullObject(0, c);
         if (!hCell.isNullObject) {
-          hCell.borderTop.visible    = false;
-          hCell.borderLeft.visible   = false;
-          hCell.borderRight.visible  = false;
-          hCell.borderBottom.visible = true;
+          hCell.borderTop.color    = "FFFFFF";
+          hCell.borderLeft.color   = "FFFFFF";
+          hCell.borderRight.color  = "FFFFFF";
+          hCell.borderBottom.color = "000000";
         }
       }
 
