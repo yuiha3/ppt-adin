@@ -386,7 +386,7 @@ function addTableRow({ content, unit, noUnit = false, pinBottom = false, prefixK
     handleCol,
     createTableInput({ value: content, className: "contentInput" }),
     quantityEl,
-    ...(noUnit ? [] : [createTableInput({ value: unit, className: "unitInput" })]),
+    ...(noUnit ? [] : [createTableInput({ value: unit, className: "unitInput", list: "unitOptions" })]),
     deleteButton
   );
 
@@ -443,13 +443,14 @@ function enforcePinnedRows(tableRows) {
   tableRows.querySelectorAll("[data-pin-bottom]").forEach((el) => tableRows.appendChild(el));
 }
 
-function createTableInput({ value = "", className = "", placeholder = "", inputmode = "" }) {
+function createTableInput({ value = "", className = "", placeholder = "", inputmode = "", list = "" }) {
   const input = document.createElement("input");
   input.type = "text";
   input.className = ["tableInput", className].filter(Boolean).join(" ");
   input.value = value;
   input.placeholder = placeholder;
   if (inputmode) input.inputMode = inputmode;
+  if (list) input.setAttribute("list", list);
   return input;
 }
 
