@@ -460,9 +460,16 @@ let dragOverEl = null;
 
 function setupDragAndDrop(row, tableRows) {
   row.addEventListener("dragstart", (e) => {
+    // input・textarea・button 上からのドラッグは中断（テキスト選択との競合を防ぐ）
+    if (e.target.matches("input, textarea, button")) {
+      e.preventDefault();
+      return;
+    }
     dragSrc = row;
     row.classList.add("dragging");
     e.dataTransfer.effectAllowed = "move";
+    // Firefox は setData() がないと drop イベントを発火させない
+    e.dataTransfer.setData("text/plain", "");
   });
 
   row.addEventListener("dragend", () => {
@@ -471,6 +478,11 @@ function setupDragAndDrop(row, tableRows) {
     dragOverEl = null;
     dragSrc    = null;
     enforcePinnedRows(tableRows);
+  });
+
+  row.addEventListener("dragenter", (e) => {
+    // dragenter を preventDefault することで drop ターゲットとして認識される
+    e.preventDefault();
   });
 
   row.addEventListener("dragover", (e) => {
