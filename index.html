@@ -179,6 +179,28 @@
     <section id="tableTab" class="tabContent">
 
       <!-- 項目追加（折りたたみ式） -->
+      <!-- 集計するスライドを選択 -->
+      <p class="section-label">集計するスライドを選択</p>
+      <div class="slide-select-section">
+        <label class="slide-select-radio">
+          <input type="radio" name="slideTarget" id="slideTargetCurrent" value="current" checked>
+          現在のスライド
+        </label>
+        <label class="slide-select-radio">
+          <input type="radio" name="slideTarget" id="slideTargetSpecific" value="specific">
+          スライドを指定
+        </label>
+        <div id="slideCheckList" class="slide-check-list" style="display:none">
+          <div class="slide-check-controls">
+            <button type="button" id="slideSelectAll"   class="slide-ctrl-btn">全選択</button>
+            <button type="button" id="slideDeselectAll" class="slide-ctrl-btn">全解除</button>
+            <button type="button" id="slideRefresh"     class="slide-ctrl-btn">更新</button>
+          </div>
+          <div id="slideCheckboxes" class="slide-checkboxes"></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
       <p class="section-label">項目を追加</p>
       <div id="defectButtonGrid" class="defectButtonGrid"></div>
 
