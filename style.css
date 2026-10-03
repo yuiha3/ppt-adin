@@ -544,7 +544,7 @@
   background: #ffffff;
   border-radius: 10px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-  width: 90vw;
+  width: 95vw;
   height: 80vh;
   display: flex;
   flex-direction: column;
@@ -1436,7 +1436,7 @@ tbody tr:nth-child(even) .summary-td--sticky {
 }
 
 .slide-popup-dialog {
-  width: 90vw;
+  width: 95vw;
   height: 80vh;
   background: #ffffff;
   border-radius: 10px;
