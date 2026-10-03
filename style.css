@@ -1268,8 +1268,8 @@ tbody tr:nth-child(even) .summary-td--sticky {
 
 .color-cache-preview {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .color-cache-swatch {
