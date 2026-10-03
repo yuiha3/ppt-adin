@@ -424,7 +424,7 @@ function renderSlideBlocks(container, from, to, syncState = false, onChangeCallb
     const blockCb = Object.assign(document.createElement("input"), {
       type: "checkbox", className: "slide-block-checkbox", checked: true
     });
-    blockLabel.append(blockCb, `${blockStart + 1}-${blockEnd}`);
+    blockLabel.append(blockCb, "All");
     block.appendChild(blockLabel);
 
     const itemsCb = [];

@@ -1373,7 +1373,7 @@ tbody tr:nth-child(even) .summary-td--sticky {
   flex-shrink: 0;
 }
 
-/* ブロック全選択チェック（「1-5」ラベル付き） */
+/* ブロック全選択チェック（Allラベル） */
 .slide-block-label {
   display: flex;
   align-items: center;
@@ -1397,7 +1397,7 @@ tbody tr:nth-child(even) .summary-td--sticky {
   flex-shrink: 0;
 }
 
-/* 個別スライドのチェック（番号のみ表示） */
+/* 個別スライドのチェック（番号のみ表示・幅を固定してブロック幅を揃える） */
 .slide-checkbox-label {
   display: flex;
   align-items: center;
@@ -1405,6 +1405,7 @@ tbody tr:nth-child(even) .summary-td--sticky {
   font-size: 11px;
   color: #374151;
   cursor: pointer;
+  min-width: 28px;  /* 2桁数字に合わせて固定 */
 }
 
 /* 全スライド表示ボタン */
