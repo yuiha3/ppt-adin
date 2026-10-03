@@ -544,8 +544,8 @@
   background: #ffffff;
   border-radius: 10px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-  width: 260px;
-  max-height: 80vh;
+  width: 80vw;
+  height: 80vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1296,4 +1296,197 @@ tbody tr:nth-child(even) .summary-td--sticky {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+/* =============================================
+   集計するスライドを選択セクション
+   ============================================= */
+.slide-select-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.slide-select-radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+}
+
+.slide-select-radio input[type="radio"] {
+  accent-color: #0070c0;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.slide-check-list {
+  margin-left: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.slide-check-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.slide-ctrl-btn {
+  padding: 3px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #f8fafc;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.slide-ctrl-btn:hover { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+
+.slide-checkboxes {
+  display: flex;
+  flex-wrap: wrap;       /* ブロックを横に並べて幅に応じて折り返す */
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fafbfc;
+}
+
+/* 5枚ブロック */
+.slide-block {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+  border: 1px solid #e5e7eb;
+  border-radius: 5px;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+/* ブロック全選択チェック（「1-5」ラベル付き） */
+.slide-block-label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  cursor: pointer;
+  padding-right: 5px;
+  border-right: 1px solid #e5e7eb;
+  margin-right: 3px;
+  white-space: nowrap;
+}
+
+.slide-block-label input[type="checkbox"],
+.slide-block input[type="checkbox"] {
+  accent-color: #0070c0;
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* 個別スライドのチェック（番号のみ表示） */
+.slide-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: #374151;
+  cursor: pointer;
+}
+
+/* 全スライド表示ボタン */
+.slide-show-all-btn {
+  width: 100%;
+  margin-top: 4px;
+  padding: 5px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  background: #f8fafc;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+.slide-show-all-btn:hover { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+
+/* スライド選択ポップアップ */
+.slide-popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slide-popup-dialog {
+  width: 80vw;
+  height: 80vh;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.slide-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.slide-popup-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a1d23;
+}
+
+.slide-popup-close {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  color: #6b7280;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.slide-popup-close:hover { background: #f0f2f5; color: #374151; }
+
+.slide-popup-dialog .slide-check-controls {
+  padding: 8px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.slide-popup-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
 }

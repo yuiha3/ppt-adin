@@ -58,8 +58,13 @@ const PDFJS_VERSION  = "3.11.174";
 // 全スライドから事前取得した色キャッシュ（null = 未取得）
 let cachedFontColors = null;  // string[]
 let cachedFillColors = null;  // string[]
+
+// 集計&表作成タブの対象スライド（null = 現在のスライド、number[] = 0-basedインデックス）
+let tableTargetSlideIndices = null;
 const PDF_RENDER_SCALE = 8.0;   // 576dpi相当（A3サイズ対応）
 const PDF_THUMB_SCALE  = 0.15;  // サムネイル縮小率
+const SLIDE_BLOCK_SIZE  = 5;    // スライド選択のブロックサイズ
+const SLIDE_INLINE_LIMIT = 30;  // インライン表示の上限（超えたらポップアップ）
 
 Office.onReady(() => {
   initializeTabs();
@@ -299,6 +304,257 @@ function initializeTableBuilder() {
   bindClick("autoSumButton",        openAutoSumPopup);
   bindClick("clearTableRowsButton", clearTableRows);
   bindClick("fetchColorsButton",    fetchAndCacheColors);
+  initializeSlideSelector();
+}
+
+function initializeSlideSelector() {
+  const radios      = document.querySelectorAll("input[name='slideTarget']");
+  const checkList   = document.getElementById("slideCheckList");
+  const selectAllBtn   = document.getElementById("slideSelectAll");
+  const deselectAllBtn = document.getElementById("slideDeselectAll");
+  const refreshBtn  = document.getElementById("slideRefresh");
+  if (!radios.length || !checkList) return;
+
+  // ラジオ切り替え
+  radios.forEach((radio) => {
+    radio.addEventListener("change", () => {
+      const isSpecific = radio.value === "specific" && radio.checked;
+      checkList.style.display = isSpecific ? "block" : "none";
+      if (isSpecific) {
+        loadSlideCheckboxes();
+      } else {
+        tableTargetSlideIndices = null; // 現在のスライド
+      }
+    });
+  });
+
+  // 全選択・全解除（個別＋ブロックチェックを連動）
+  selectAllBtn?.addEventListener("click", () => {
+    document.querySelectorAll(".slide-checkbox").forEach((cb) => { cb.checked = true; });
+    document.querySelectorAll(".slide-block-checkbox").forEach((cb) => {
+      cb.checked = true; cb.indeterminate = false;
+    });
+    updateTableTargetSlides();
+  });
+  deselectAllBtn?.addEventListener("click", () => {
+    document.querySelectorAll(".slide-checkbox").forEach((cb) => { cb.checked = false; });
+    document.querySelectorAll(".slide-block-checkbox").forEach((cb) => {
+      cb.checked = false; cb.indeterminate = false;
+    });
+    updateTableTargetSlides();
+  });
+
+  // スライド一覧を更新
+  refreshBtn?.addEventListener("click", loadSlideCheckboxes);
+}
+
+async function loadSlideCheckboxes() {
+  const container = document.getElementById("slideCheckboxes");
+  if (!container) return;
+  container.innerHTML = "";
+
+  try {
+    await PowerPoint.run(async (context) => {
+      const slides = context.presentation.slides;
+      slides.load("items");
+      await context.sync();
+      const total = slides.items.length;
+
+      // インライン表示：SLIDE_INLINE_LIMIT 以下はそのまま、超えたら上限まで表示＋ボタン
+      const inlineCount = Math.min(total, SLIDE_INLINE_LIMIT);
+      renderSlideBlocks(container, 0, inlineCount, true);
+
+      if (total > SLIDE_INLINE_LIMIT) {
+        const showAllBtn = Object.assign(document.createElement("button"), {
+          type: "button",
+          className: "slide-show-all-btn",
+          textContent: `全てのスライド番号を表示（${total}枚）`
+        });
+        showAllBtn.addEventListener("click", () => openSlidePopup(total));
+        container.appendChild(showAllBtn);
+      }
+    });
+    updateTableTargetSlides();
+  } catch (e) { console.error("スライド一覧取得エラー:", e); }
+}
+
+/** ブロックチェックの状態（全選択/indeterminate/全解除）を個別チェックに合わせて更新 */
+function syncBlockCheckbox(blockCb, itemsCbs) {
+  const all  = itemsCbs.every((cb) => cb.checked);
+  const none = itemsCbs.every((cb) => !cb.checked);
+  blockCb.checked       = all;
+  blockCb.indeterminate = !all && !none;
+}
+
+/**
+ * 指定範囲のスライドをブロック形式でコンテナに描画する。
+ * @param {HTMLElement} container - 描画先コンテナ
+ * @param {number}      from      - 開始インデックス（0-based）
+ * @param {number}      to        - 終了インデックス（exclusive）
+ * @param {boolean}     syncState - true のとき既存の .slide-checkbox の状態を引き継ぐ
+ */
+/**
+ * 指定範囲のスライドをブロック形式でコンテナに描画する。
+ * @param {HTMLElement}       container        - 描画先コンテナ
+ * @param {number}            from             - 開始インデックス（0-based）
+ * @param {number}            to               - 終了インデックス（exclusive）
+ * @param {boolean}           syncState        - true のとき既存の .slide-checkbox の状態を引き継ぐ
+ * @param {Function|null}     onChangeCallback - チェック変更時のコールバック（省略時は updateTableTargetSlides）
+ */
+function renderSlideBlocks(container, from, to, syncState = false, onChangeCallback = null) {
+  const onChange = onChangeCallback ?? updateTableTargetSlides;
+
+  // 既存チェック状態を保持
+  const prevState = {};
+  if (syncState) {
+    document.querySelectorAll(".slide-checkbox").forEach((cb) => {
+      prevState[cb.dataset.slideIndex] = cb.checked;
+    });
+  }
+
+  for (let blockStart = from; blockStart < to; blockStart += SLIDE_BLOCK_SIZE) {
+    const blockEnd     = Math.min(blockStart + SLIDE_BLOCK_SIZE, to);
+    const blockIndices = Array.from({ length: blockEnd - blockStart }, (_, k) => blockStart + k);
+
+    const block = document.createElement("div");
+    block.className = "slide-block";
+
+    const blockLabel = document.createElement("label");
+    blockLabel.className = "slide-block-label";
+    const blockCb = Object.assign(document.createElement("input"), {
+      type: "checkbox", className: "slide-block-checkbox", checked: true
+    });
+    blockLabel.append(blockCb, `${blockStart + 1}-${blockEnd}`);
+    block.appendChild(blockLabel);
+
+    const itemsCb = [];
+    blockIndices.forEach((i) => {
+      const label = document.createElement("label");
+      label.className = "slide-checkbox-label";
+      const checked = syncState && prevState[String(i)] === false ? false : true;
+      const cb = Object.assign(document.createElement("input"), {
+        type: "checkbox", className: "slide-checkbox", checked
+      });
+      cb.dataset.slideIndex = String(i);
+      cb.addEventListener("change", () => {
+        syncBlockCheckbox(blockCb, itemsCb);
+        onChange();
+      });
+      itemsCb.push(cb);
+      label.append(cb, `${i + 1}`);
+      block.appendChild(label);
+    });
+
+    blockCb.addEventListener("change", () => {
+      itemsCb.forEach((cb) => { cb.checked = blockCb.checked; });
+      onChange();
+    });
+
+    syncBlockCheckbox(blockCb, itemsCb);
+    container.appendChild(block);
+  }
+}
+
+/**
+ * 全スライドをポップアップで表示する。
+ * 閉じる時にインライン側の状態を最新チェック状態で更新する。
+ */
+function openSlidePopup(total) {
+  document.getElementById("slidePopup")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "slidePopup";
+  overlay.className = "slide-popup-overlay";
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeSlidePopup(); });
+
+  const dialog = document.createElement("div");
+  dialog.className = "slide-popup-dialog";
+
+  // ヘッダー
+  const header = document.createElement("div");
+  header.className = "slide-popup-header";
+  header.appendChild(Object.assign(document.createElement("span"), {
+    className: "slide-popup-title", textContent: `スライドを選択（全${total}枚）`
+  }));
+  const closeBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "slide-popup-close", textContent: "✕"
+  });
+  closeBtn.addEventListener("click", closeSlidePopup);
+  header.appendChild(closeBtn);
+  dialog.appendChild(header);
+
+  // コントロール
+  const controls = document.createElement("div");
+  controls.className = "slide-check-controls";
+  const selAll = Object.assign(document.createElement("button"), {
+    type: "button", className: "slide-ctrl-btn", textContent: "全選択"
+  });
+  const deselAll = Object.assign(document.createElement("button"), {
+    type: "button", className: "slide-ctrl-btn", textContent: "全解除"
+  });
+  selAll.addEventListener("click", () => {
+    dialog.querySelectorAll(".slide-checkbox").forEach((cb) => { cb.checked = true; });
+    dialog.querySelectorAll(".slide-block-checkbox").forEach((cb) => {
+      cb.checked = true; cb.indeterminate = false;
+    });
+    updateTableTargetSlidesFrom(dialog);
+  });
+  deselAll.addEventListener("click", () => {
+    dialog.querySelectorAll(".slide-checkbox").forEach((cb) => { cb.checked = false; });
+    dialog.querySelectorAll(".slide-block-checkbox").forEach((cb) => {
+      cb.checked = false; cb.indeterminate = false;
+    });
+    updateTableTargetSlidesFrom(dialog);
+  });
+  controls.append(selAll, deselAll);
+  dialog.appendChild(controls);
+
+  // ブロック一覧：renderSlideBlocks を使って描画（重複実装を排除）
+  const body = document.createElement("div");
+  body.className = "slide-popup-body";
+  // ポップアップ用のコールバック（updateTableTargetSlidesFrom を使う）
+  renderSlideBlocks(body, 0, total, true, () => updateTableTargetSlidesFrom(dialog));
+
+  dialog.appendChild(body);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+  // 初期状態を反映
+  updateTableTargetSlidesFrom(dialog);
+}
+
+function closeSlidePopup() {
+  document.getElementById("slidePopup")?.remove();
+  // インライン側の表示を現在の tableTargetSlideIndices に合わせて同期
+  syncInlineCheckboxes();
+}
+
+/** ポップアップまたはインラインのどちらかからチェック状態を読んで状態を更新する */
+function updateTableTargetSlidesFrom(root) {
+  const checked = [...root.querySelectorAll(".slide-checkbox:checked")];
+  tableTargetSlideIndices = checked.map((cb) => Number(cb.dataset.slideIndex));
+  // インライン側にも反映
+  syncInlineCheckboxes();
+}
+
+/** tableTargetSlideIndices をインライン側の .slide-checkbox に反映する */
+function syncInlineCheckboxes() {
+  const indicesSet = new Set(tableTargetSlideIndices ?? []);
+  document.querySelectorAll("#slideCheckboxes .slide-checkbox").forEach((cb) => {
+    cb.checked = indicesSet.has(Number(cb.dataset.slideIndex));
+  });
+  // ブロックチェックも同期
+  document.querySelectorAll("#slideCheckboxes .slide-block").forEach((block) => {
+    const blockCb  = block.querySelector(".slide-block-checkbox");
+    const itemsCbs = [...block.querySelectorAll(".slide-checkbox")];
+    if (blockCb && itemsCbs.length > 0) syncBlockCheckbox(blockCb, itemsCbs);
+  });
+}
+
+function updateTableTargetSlides() {
+  const checked = [...document.querySelectorAll(".slide-checkbox:checked")];
+  tableTargetSlideIndices = checked.length > 0
+    ? checked.map((cb) => Number(cb.dataset.slideIndex))
+    : [];
 }
 
 function renderDefectButtons() {
@@ -751,24 +1007,56 @@ async function runAutoSum(activePopupRows, tableRowEls) {
     const isEfuroMode = popupRow.querySelector(".autosum-efuro-checkbox")?.checked ?? false;
 
     try {
-      if (isEfuroMode) {
-        await PowerPoint.run(async (context) => {
-          const slide = await getCurrentSlide(context);
-          if (!slide) return;
-          const { numbers } = await collectPrefixNumbers(context, slide, "エ");
+      await PowerPoint.run(async (context) => {
+        const slides = await getTableTargetSlides(context);
+        if (slides.length === 0) { quantityInput.value = "0"; return; }
+
+        if (isEfuroMode) {
+          const numbers = [];
+          for (const slide of slides) {
+            const { numbers: n } = await collectPrefixNumbers(context, slide, "エ");
+            numbers.push(...n);
+          }
           quantityInput.value = numbers.length > 0
             ? sum(numbers).toFixed(maxDecimalPlacesFromNumbers(numbers))
             : "0";
-        });
-      } else if (!fontColor) {
-        quantityInput.value = "0";
-      } else if (isAreaMode) {
-        const result = await sumAreaByColorDirect(fontColor, fillColor);
-        quantityInput.value = (result ? ceilAt2(result) : 0).toFixed(2);
-      } else {
-        const result = await sumNumbersByColorDirect(fontColor, fillColor);
-        quantityInput.value = result !== null ? result.total.toFixed(result.places) : "0";
-      }
+
+        } else if (!fontColor) {
+          quantityInput.value = "0";
+
+        } else if (isAreaMode) {
+          const textShapes2 = [];
+          for (const slide of slides) {
+            const shapes = await getTextShapes(context, slide, { includeFillColor: !!fillColor });
+            textShapes2.push(...(fillColor ? shapes.filter((s) => s.fillColor === fillColor) : shapes));
+          }
+          let areaTotal = 0;
+          for (const item of textShapes2) {
+            areaTotal += extractAreaValues(await extractTextByColor(context, item.textRange, item.text, fontColor));
+          }
+          quantityInput.value = (areaTotal ? ceilAt2(areaTotal) : 0).toFixed(2);
+
+        } else {
+          const numbers = [];
+          const hitIds  = [];
+          for (const slide of slides) {
+            const shapes = await getTextShapes(context, slide, { includeFillColor: !!fillColor });
+            const targets = fillColor ? shapes.filter((s) => s.fillColor === fillColor) : shapes;
+            for (const item of targets) {
+              const found = extractNumbers(await extractTextByColor(context, item.textRange, item.text, fontColor));
+              if (found.length > 0) { numbers.push(...found); hitIds.push(item.shapeId); }
+            }
+          }
+          // 複数スライドの場合は選択状態を変えない（スライドをまたぐ選択は不可）
+          if (slides.length === 1 && hitIds.length > 0) {
+            slides[0].setSelectedShapes(hitIds);
+            await context.sync();
+          }
+          quantityInput.value = numbers.length > 0
+            ? sum(numbers).toFixed(maxDecimalPlacesFromNumbers(numbers))
+            : "0";
+        }
+      });
     } catch (e) { console.error("集計エラー:", e); }
   }
 
@@ -1927,6 +2215,22 @@ async function loadSelectedTextRange(context) {
   }
 
   return { ok: true, textColor, decimalPlaces: getDecimalPlaces(selectedTextRange.text.trim()) };
+}
+
+/**
+ * 集計&表作成タブの自動集計で使う対象スライドを返す。
+ * tableTargetSlideIndices が null なら現在のスライドのみ。
+ */
+async function getTableTargetSlides(context) {
+  if (tableTargetSlideIndices === null) {
+    const slide = await getCurrentSlide(context);
+    return slide ? [slide] : [];
+  }
+  if (tableTargetSlideIndices.length === 0) return [];
+  const allSlides = context.presentation.slides;
+  allSlides.load("items");
+  await context.sync();
+  return tableTargetSlideIndices.map((i) => allSlides.items[i]).filter(Boolean);
 }
 
 async function getSelectedTextInfo() {
