@@ -892,9 +892,8 @@ async function fetchAndCacheColors() {
       previewEl.appendChild(makeSwatchGroup("背景色", cachedFillColors));
     }
 
-    const total = new Set([...cachedFontColors, ...cachedFillColors]).size;
     showColorCacheStatus(
-      `${total}色を取得しました（文字色 ${cachedFontColors.length}・背景色 ${cachedFillColors.length}）`,
+      `文字色 ${cachedFontColors.length}色・背景色 ${cachedFillColors.length}色を取得しました`,
       "success"
     );
   } catch (e) {
