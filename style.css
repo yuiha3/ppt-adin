@@ -1228,3 +1228,54 @@ tbody tr:nth-child(even) .summary-td--sticky {
   background: #eff6ff;
   color: #1d4ed8;
 }
+
+/* =============================================
+   色の事前取得セクション（表作成タブ）
+   ============================================= */
+.color-cache-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.color-cache-btn {
+  width: 100%;
+  padding: 7px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.color-cache-btn:hover:not(:disabled) { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+.color-cache-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.color-cache-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: none;
+}
+.color-cache-status:not(:empty) { display: block; }
+.color-cache-status--info    { background: #eff6ff; color: #1d4ed8; }
+.color-cache-status--success { background: #f0fdf4; color: #166534; }
+.color-cache-status--error   { background: #fef2f2; color: #991b1b; }
+
+.color-cache-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.color-cache-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid rgba(0,0,0,0.12);
+  flex-shrink: 0;
+}

@@ -54,6 +54,10 @@ const DEFECT_GROUPS = [
 ];
 
 const PDFJS_VERSION  = "3.11.174";
+
+// 全スライドから事前取得した色キャッシュ（null = 未取得）
+let cachedFontColors = null;  // string[]
+let cachedFillColors = null;  // string[]
 const PDF_RENDER_SCALE = 8.0;   // 576dpi相当（A3サイズ対応）
 const PDF_THUMB_SCALE  = 0.15;  // サムネイル縮小率
 
@@ -104,8 +108,9 @@ function showStatus(elementId, baseClass, message, type = "info") {
   el.className     = `${baseClass} ${baseClass}--${type}`;
   el.style.display = "block";
 }
-const showPdfStatus     = (msg, type) => showStatus("pdfStatus",            "pdf-status",              msg, type);
-const showSummaryStatus = (msg, type) => showStatus("summaryCollectStatus", "summary-collect-status",  msg, type);
+const showPdfStatus        = (msg, type) => showStatus("pdfStatus",            "pdf-status",              msg, type);
+const showSummaryStatus    = (msg, type) => showStatus("summaryCollectStatus", "summary-collect-status",  msg, type);
+const showColorCacheStatus = (msg, type) => showStatus("colorCacheStatus",     "color-cache-status",      msg, type);
 
 async function loadPdf(file) {
   showPdfStatus("PDFを読み込んでいます...", "info");
@@ -293,6 +298,7 @@ function initializeTableBuilder() {
   bindClick("outputSumTableButton", () => outputTableToSlide(true));
   bindClick("autoSumButton",        openAutoSumPopup);
   bindClick("clearTableRowsButton", clearTableRows);
+  bindClick("fetchColorsButton",    fetchAndCacheColors);
 }
 
 function renderDefectButtons() {
@@ -775,8 +781,16 @@ async function openColorPicker(dotEl, colorType, onSelect = null) {
   closeColorPicker();
 
   let colors = [];
-  try { colors = await collectSlideColors(colorType); }
-  catch (e) { console.error("色の取得に失敗しました:", e); }
+  try {
+    // キャッシュがあれば再取得せずに使用
+    if (colorType === "font" && cachedFontColors !== null) {
+      colors = cachedFontColors;
+    } else if (colorType === "fill" && cachedFillColors !== null) {
+      colors = cachedFillColors;
+    } else {
+      colors = await collectSlideColors(colorType);
+    }
+  } catch (e) { console.error("色の取得に失敗しました:", e); }
 
   const popup = document.createElement("div");
   popup.id = "colorPickerPopup";
@@ -831,6 +845,48 @@ function onOutsideClick(e) {
 function closeColorPicker() {
   document.getElementById("colorPickerPopup")?.remove();
   document.removeEventListener("click", onOutsideClick);
+}
+
+/**
+ * 「全スライドから色を取得」ボタン押下時の処理。
+ * フォント色・背景色を両方取得してキャッシュに保存する。
+ */
+async function fetchAndCacheColors() {
+  const previewEl = document.getElementById("colorCachePreview");
+  const btn       = document.getElementById("fetchColorsButton");
+  showColorCacheStatus("取得中...", "info");
+  if (previewEl) previewEl.innerHTML = "";
+  if (btn) btn.disabled = true;
+
+  try {
+    [cachedFontColors, cachedFillColors] = await Promise.all([
+      collectSlideColors("font"),
+      collectSlideColors("fill")
+    ]);
+
+    // プレビュー表示
+    if (previewEl) {
+      const allColors = [...new Set([...cachedFontColors, ...cachedFillColors])];
+      allColors.forEach((color) => {
+        const swatch = document.createElement("div");
+        swatch.className = "color-cache-swatch";
+        swatch.style.background = color;
+        swatch.title = color;
+        previewEl.appendChild(swatch);
+      });
+    }
+
+    const total = new Set([...cachedFontColors, ...cachedFillColors]).size;
+    showColorCacheStatus(
+      `${total}色を取得しました（文字色 ${cachedFontColors.length}・背景色 ${cachedFillColors.length}）`,
+      "success"
+    );
+  } catch (e) {
+    console.error(e);
+    showColorCacheStatus("取得に失敗しました。", "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 /**
