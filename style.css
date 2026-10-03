@@ -1279,3 +1279,21 @@ tbody tr:nth-child(even) .summary-td--sticky {
   border: 1px solid rgba(0,0,0,0.12);
   flex-shrink: 0;
 }
+
+.color-cache-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.color-cache-group__label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.color-cache-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}

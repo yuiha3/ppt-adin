@@ -864,16 +864,32 @@ async function fetchAndCacheColors() {
       collectSlideColors("fill")
     ]);
 
-    // プレビュー表示
+    // プレビュー表示（文字色・背景色を分けて表示）
     if (previewEl) {
-      const allColors = [...new Set([...cachedFontColors, ...cachedFillColors])];
-      allColors.forEach((color) => {
-        const swatch = document.createElement("div");
-        swatch.className = "color-cache-swatch";
-        swatch.style.background = color;
-        swatch.title = color;
-        previewEl.appendChild(swatch);
-      });
+      const makeSwatchGroup = (label, colors) => {
+        const group = document.createElement("div");
+        group.className = "color-cache-group";
+
+        const lbl = Object.assign(document.createElement("span"), {
+          className: "color-cache-group__label", textContent: label
+        });
+        group.appendChild(lbl);
+
+        const swatches = document.createElement("div");
+        swatches.className = "color-cache-swatches";
+        colors.forEach((color) => {
+          const swatch = document.createElement("div");
+          swatch.className = "color-cache-swatch";
+          swatch.style.background = color;
+          swatch.title = color;
+          swatches.appendChild(swatch);
+        });
+        group.appendChild(swatches);
+        return group;
+      };
+
+      previewEl.appendChild(makeSwatchGroup("文字色", cachedFontColors));
+      previewEl.appendChild(makeSwatchGroup("背景色", cachedFillColors));
     }
 
     const total = new Set([...cachedFontColors, ...cachedFillColors]).size;
