@@ -2633,14 +2633,13 @@ function renderPhotomass(photoResults, section) {
     const row = document.createElement("div");
     row.className = "photomass-row";
 
-    const nameEl = Object.assign(document.createElement("span"), {
-      className: "photomass-slide", textContent: slideName + "："
-    });
+    // 上段：スライド名 + コピーボタン
+    const header = document.createElement("div");
+    header.className = "photomass-row__header";
 
-    const valueEl = Object.assign(document.createElement("span"), {
-      className: "photomass-value"
+    const nameEl = Object.assign(document.createElement("span"), {
+      className: "photomass-slide", textContent: slideName
     });
-    valueEl.textContent = value || "なし";
 
     const copyBtn = Object.assign(document.createElement("button"), {
       type: "button", className: "photomass-copy-btn", textContent: "コピー"
@@ -2656,7 +2655,15 @@ function renderPhotomass(photoResults, section) {
       }
     });
 
-    row.append(nameEl, valueEl, copyBtn);
+    header.append(nameEl, copyBtn);
+
+    // 下段：値
+    const valueEl = Object.assign(document.createElement("span"), {
+      className: "photomass-value"
+    });
+    valueEl.textContent = value || "なし";
+
+    row.append(header, valueEl);
     section.appendChild(row);
   });
 

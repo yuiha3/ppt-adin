@@ -1693,9 +1693,19 @@ tbody tr:nth-child(even) .summary-td--sticky {
 
 .photomass-row {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.photomass-row__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .photomass-slide {
@@ -1708,7 +1718,6 @@ tbody tr:nth-child(even) .summary-td--sticky {
 .photomass-value {
   font-size: 13px;
   color: #1a1d23;
-  flex: 1;
   white-space: pre-wrap;
   word-break: break-all;
 }
