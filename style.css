@@ -1044,7 +1044,6 @@ body {
 .summary-td--sticky {
   background: #f8fafc;
   font-weight: 600;
-  min-width: 120px;  /* 項目名が見切れないよう最低幅を確保 */
 }
 
 .summary-row-delete-btn {
@@ -1519,6 +1518,11 @@ tbody tr:nth-child(even) .summary-td--sticky {
   color: #374151;
   padding: 0;
   outline: none;
+}
+
+/* 項目名inputのみ最低幅を確保 */
+.summary-td--sticky .summary-edit-input {
+  min-width: 120px;
 }
 .summary-edit-input:focus {
   background: #eff6ff;

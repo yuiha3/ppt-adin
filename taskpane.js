@@ -1763,9 +1763,16 @@ function buildEditableSummaryTable(commonEntries, slideData) {
       type: "button", className: "summary-row-delete-btn", textContent: "×"
     });
     delBtn.addEventListener("click", () => {
-      const idx = [...tbody.children].indexOf(tr);
-      if (idx !== -1) rowCheckboxes.splice(idx, 1);
-      tr.remove();
+      showConfirmDialog(
+        "この行を削除しますか？",
+        "削除した行は元に戻せません。",
+        "削除する",
+        () => {
+          const idx = [...tbody.children].indexOf(tr);
+          if (idx !== -1) rowCheckboxes.splice(idx, 1);
+          tr.remove();
+        }
+      );
     });
     checkTd.appendChild(delBtn);
     tr.appendChild(checkTd);
