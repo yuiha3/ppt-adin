@@ -1781,7 +1781,7 @@ tbody tr:nth-child(even) .summary-td--sticky {
 
 .slide-raw-filter__grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 4px 8px;
 }
 
