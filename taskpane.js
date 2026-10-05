@@ -1709,21 +1709,57 @@ function renderSummaryAll(commonEntries, uniqueEntries, slideData) {
     hr.className = "summary-divider";
     wrap.appendChild(hr);
     wrap.appendChild(makeSectionLabel("各スライドの集計表"));
-    slideData.forEach(({ slideName, rows }) => {
-      // スライド番号ラベル
-      const label = Object.assign(document.createElement("p"), {
-        className: "slide-raw-label", textContent: slideName
-      });
-      wrap.appendChild(label);
 
-      // rows[0] = ヘッダー行（＜集計＞）、rows[1..] = データ行
+    // 全スライドの項目名の和集合（登場順）
+    const allItems = [];
+    const itemSet  = new Set();
+    slideData.forEach(({ rows }) => {
+      rows.slice(1).forEach((row) => {
+        const name = row[0] ?? "";
+        if (name && !itemSet.has(name)) { itemSet.add(name); allItems.push(name); }
+      });
+    });
+
+    // 「表示する行を選択」セクション
+    const filterSection = document.createElement("div");
+    filterSection.className = "slide-raw-filter";
+    filterSection.appendChild(Object.assign(document.createElement("p"), {
+      className: "slide-raw-filter__label", textContent: "表示する行を選択"
+    }));
+
+    const checkGrid = document.createElement("div");
+    checkGrid.className = "slide-raw-filter__grid";
+
+    allItems.forEach((itemName) => {
+      const label = document.createElement("label");
+      label.className = "slide-raw-filter__item";
+      const cb = Object.assign(document.createElement("input"), {
+        type: "checkbox", checked: true
+      });
+      cb.addEventListener("change", () => {
+        // 全スライドの対応する行を表示/非表示
+        document.querySelectorAll(`.slide-raw-tr[data-item="${CSS.escape(itemName)}"]`)
+          .forEach((tr) => { tr.style.display = cb.checked ? "" : "none"; });
+      });
+      label.append(cb, itemName);
+      checkGrid.appendChild(label);
+    });
+
+    filterSection.appendChild(checkGrid);
+    wrap.appendChild(filterSection);
+
+    // 各スライドの集計表
+    slideData.forEach(({ slideName, rows }) => {
+      wrap.appendChild(Object.assign(document.createElement("p"), {
+        className: "slide-raw-label", textContent: slideName
+      }));
+
       const tableWrap = document.createElement("div");
       tableWrap.className = "summary-collect-wrap";
 
       const table = document.createElement("table");
       table.className = "summary-collect-table";
 
-      // ヘッダー行
       const thead = document.createElement("thead");
       const hRow  = document.createElement("tr");
       ["項目", "数量", "単位"].forEach((text) => {
@@ -1734,12 +1770,14 @@ function renderSummaryAll(commonEntries, uniqueEntries, slideData) {
       thead.appendChild(hRow);
       table.appendChild(thead);
 
-      // データ行（rows[1..] を使用）
       const tbody = document.createElement("tbody");
       rows.slice(1).forEach((row) => {
-        if (!row[0]) return; // 項目名が空はスキップ
+        const itemName = row[0] ?? "";
+        if (!itemName) return;
         const tr = document.createElement("tr");
-        [row[0] ?? "", row[1] ?? "", row[2] ?? ""].forEach((text, c) => {
+        tr.className = "slide-raw-tr";
+        tr.dataset.item = itemName;
+        [itemName, row[1] ?? "", row[2] ?? ""].forEach((text, c) => {
           tr.appendChild(Object.assign(document.createElement("td"), {
             className: "summary-td" + (c === 1 ? " summary-td--value" : ""),
             textContent: text
