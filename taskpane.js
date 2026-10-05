@@ -1770,7 +1770,8 @@ function openMergePopup(commonEntries, slideData, container) {
     const selectedIndices = new Set(selected.map(({ slideIndex }) => slideIndex));
 
     // 結合後の slideName（例：スライド1,2,3）
-    const mergedName = selected.map(({ slideName }) => slideName).join(",");
+    // 「スライド1,2,3」形式：「スライド」は先頭のみ、番号をカンマ区切り
+    const mergedName = "スライド" + selected.map(({ slideName }) => slideName.replace("スライド", "")).join(",");
 
     // 結合スライドの slideIndex は最初のもの、値は合算
     const firstIndex = selected[0].slideIndex;
