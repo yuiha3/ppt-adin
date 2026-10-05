@@ -1529,7 +1529,10 @@ tbody tr:nth-child(even) .summary-td--sticky {
   background: #eff6ff;
   border-radius: 2px;
 }
-.summary-edit-input--center { text-align: center; }
+.summary-edit-input--center {
+  text-align: center;
+  width: auto;   /* 内容幅に合わせる（width:100%による過剰な広がりを防ぐ） */
+}
 
 /* DnD ハンドル列 */
 .summary-th--handle,

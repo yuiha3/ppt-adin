@@ -1799,7 +1799,8 @@ function buildEditableSummaryTable(commonEntries, slideData) {
       const qtyInput = Object.assign(document.createElement("input"), {
         type: "text",
         value: entry.slideValues.get(slideIndex) ?? "",
-        className: "summary-edit-input summary-edit-input--center"
+        className: "summary-edit-input summary-edit-input--center",
+        size: 6   /* 幅をコンテンツに合わせて小さくする */
       });
       // 数量変更時に合計セルを更新
       qtyInput.addEventListener("input", () => updateTotalCell(tr, slideData));
@@ -1816,7 +1817,8 @@ function buildEditableSummaryTable(commonEntries, slideData) {
     const unitTd = document.createElement("td");
     unitTd.className = "summary-td summary-td--unit-cell";
     const unitInput = Object.assign(document.createElement("input"), {
-      type: "text", value: entry.unit, className: "summary-edit-input summary-edit-input--center"
+      type: "text", value: entry.unit, className: "summary-edit-input summary-edit-input--center",
+      size: 6
     });
     unitTd.appendChild(unitInput);
     tr.appendChild(unitTd);
