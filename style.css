@@ -1801,3 +1801,9 @@ tbody tr:nth-child(even) .summary-td--sticky {
   cursor: pointer;
   flex-shrink: 0;
 }
+
+.slide-raw-filter__controls {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}

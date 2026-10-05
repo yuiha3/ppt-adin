@@ -1746,6 +1746,27 @@ function renderSummaryAll(commonEntries, uniqueEntries, slideData) {
     });
 
     filterSection.appendChild(checkGrid);
+
+    // 全選択・全解除ボタン
+    const ctrlRow = document.createElement("div");
+    ctrlRow.className = "slide-raw-filter__controls";
+
+    const makeCtrlBtn = (label, checked) => {
+      const btn = Object.assign(document.createElement("button"), {
+        type: "button", className: "slide-ctrl-btn", textContent: label
+      });
+      btn.addEventListener("click", () => {
+        checkGrid.querySelectorAll("input[type='checkbox']").forEach((cb) => {
+          cb.checked = checked;
+          cb.dispatchEvent(new Event("change"));
+        });
+      });
+      return btn;
+    };
+
+    ctrlRow.append(makeCtrlBtn("全選択", true), makeCtrlBtn("全解除", false));
+    filterSection.appendChild(ctrlRow);
+
     wrap.appendChild(filterSection);
 
     // 各スライドの集計表
