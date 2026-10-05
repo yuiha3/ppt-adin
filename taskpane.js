@@ -1763,7 +1763,7 @@ function openSplitPopup(commonEntries, slideData, wrap) {
   // 説明
   const desc = Object.assign(document.createElement("p"), {
     className: "split-popup-desc",
-    textContent: "選択したスライド列以降を別の表として切り分けます。"
+    textContent: "選択したスライド以降（選択したスライドを含む）を別の表として切り分けます。"
   });
   dialog.appendChild(desc);
 
@@ -1782,7 +1782,7 @@ function openSplitPopup(commonEntries, slideData, wrap) {
       checked: actualIdx === selectedIdx
     });
     radio.addEventListener("change", () => { selectedIdx = actualIdx; });
-    label.append(radio, `${slideName}から切り分け`);
+    label.append(radio, slideName);
     body.appendChild(label);
   });
   dialog.appendChild(body);
@@ -1805,13 +1805,13 @@ function openSplitPopup(commonEntries, slideData, wrap) {
     // 1つ目の表
     const { tableWrap: t1, getCheckedTsv: tsv1 } = buildEditableSummaryTable(commonEntries, slideData1);
     wrap.appendChild(t1);
-    wrap.appendChild(makeCopyBtnRow(() => tsv1(), "表1 Excel貼り付け用にコピー"));
+    wrap.appendChild(makeSummaryBtnRow(commonEntries, slideData1, wrap, tsv1, "表1 Excel貼り付け用にコピー"));
 
     // 2つ目の表（同じ項目名）
     wrap.appendChild(makeSectionLabel("切り分け後"));
     const { tableWrap: t2, getCheckedTsv: tsv2 } = buildEditableSummaryTable(commonEntries, slideData2);
     wrap.appendChild(t2);
-    wrap.appendChild(makeCopyBtnRow(() => tsv2(), "表2 Excel貼り付け用にコピー"));
+    wrap.appendChild(makeSummaryBtnRow(commonEntries, slideData2, wrap, tsv2, "表2 Excel貼り付け用にコピー"));
   });
   dialog.appendChild(execBtn);
 

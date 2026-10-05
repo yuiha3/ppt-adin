@@ -1130,8 +1130,6 @@ tbody tr:nth-child(even) .summary-td--sticky {
 }
 
 .summary-excel-copy-btn {
-  display: block;
-  margin-top: 8px;
   padding: 7px 12px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
@@ -1141,6 +1139,7 @@ tbody tr:nth-child(even) .summary-td--sticky {
   font-weight: 600;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
 }
 .summary-excel-copy-btn:hover { background: #f0fdf4; border-color: #86efac; color: #166534; }
 
@@ -1572,8 +1571,9 @@ tbody tr:nth-child(even) .summary-td--sticky {
 /* 表切り分けボタン */
 .summary-btn-row {
   display: flex;
+  align-items: stretch;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
 .summary-split-btn {
