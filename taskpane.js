@@ -3018,10 +3018,17 @@ function extractNumbers(text) {
 }
 
 function extractLetterCodes(text) {
-  return [...text.matchAll(/\b([A-Z])-(\d+)\b/g)].map((m) => ({
-    letter: m[1],
-    number: Number(m[2])
-  }));
+  const results = [];
+  // A-1 または A-1~17 の両形式にマッチして範囲を展開する
+  for (const m of text.matchAll(/\b([A-Z])-(\d+)(?:~(\d+))?\b/g)) {
+    const letter = m[1];
+    const start  = Number(m[2]);
+    const end    = m[3] !== undefined ? Number(m[3]) : start;
+    for (let n = start; n <= end; n++) {
+      results.push({ letter, number: n });
+    }
+  }
+  return results;
 }
 
 function compressNumberRanges(numbers) {
