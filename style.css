@@ -1002,7 +1002,7 @@ body {
 .summary-collect-status--error   { background: #fef2f2; color: #991b1b; }
 
 .summary-collect-wrap {
-  margin-top: 10px;
+  margin-top: 16px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid #e5e7eb;
@@ -1126,7 +1126,7 @@ tbody tr:nth-child(even) .summary-td--sticky {
 .summary-photo-copy:hover { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
 
 .summary-section-label {
-  margin-top: 12px;
+  margin-top: 20px;
 }
 
 .summary-excel-copy-btn {
@@ -1668,7 +1668,11 @@ tbody tr:nth-child(even) .summary-td--sticky {
   font-size: 11px;
   font-weight: 700;
   color: #374151;
-  margin: 8px 0 2px;
+  margin: 20px 0 4px;
+}
+
+.slide-raw-label:first-of-type {
+  margin-top: 8px;
 }
 
 /* =============================================
@@ -1756,5 +1760,5 @@ tbody tr:nth-child(even) .summary-td--sticky {
 .summary-divider {
   border: none;
   border-top: 1px solid #e5e7eb;
-  margin: 16px 0;
+  margin: 28px 0;
 }
