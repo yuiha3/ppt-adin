@@ -1694,11 +1694,6 @@ function renderSummaryAll(commonEntries, uniqueEntries, slideData) {
     });
     copyBtn.addEventListener("click", async () => {
       const tsv = getCheckedTsv();
-      if (!tsv) {
-        copyBtn.textContent = "行が未選択です";
-        setTimeout(() => { copyBtn.textContent = "Excel貼り付け用にコピー"; }, 1500);
-        return;
-      }
       try {
         await navigator.clipboard.writeText(tsv);
         copyBtn.textContent = "✓ コピー済";
@@ -1733,12 +1728,10 @@ function buildEditableSummaryTable(commonEntries, slideData) {
   const thead = document.createElement("thead");
   const hRow  = document.createElement("tr");
 
-  // 全選択チェック
-  const allCheckTh = document.createElement("th");
-  allCheckTh.className = "summary-th summary-th--check";
-  const allCheck = Object.assign(document.createElement("input"), { type: "checkbox", checked: true });
-  allCheckTh.appendChild(allCheck);
-  hRow.appendChild(allCheckTh);
+  // 削除ボタン列ヘッダー（空）
+  hRow.appendChild(Object.assign(document.createElement("th"), {
+    className: "summary-th summary-th--check"
+  }));
 
   // DnD ハンドル列
   hRow.appendChild(Object.assign(document.createElement("th"), { className: "summary-th summary-th--handle" }));
@@ -1763,18 +1756,18 @@ function buildEditableSummaryTable(commonEntries, slideData) {
     tr.draggable = true;
     tr.className = "summary-editable-row";
 
-    // チェックボックス
+    // 削除ボタン
     const checkTd = document.createElement("td");
     checkTd.className = "summary-td summary-td--check";
-    const cb = Object.assign(document.createElement("input"), { type: "checkbox", checked: true });
-    cb.addEventListener("change", () => {
-      const all  = rowCheckboxes.every((c) => c.checked);
-      const none = rowCheckboxes.every((c) => !c.checked);
-      allCheck.checked       = all;
-      allCheck.indeterminate = !all && !none;
+    const delBtn = Object.assign(document.createElement("button"), {
+      type: "button", className: "summary-row-delete-btn", textContent: "×"
     });
-    rowCheckboxes.push(cb);
-    checkTd.appendChild(cb);
+    delBtn.addEventListener("click", () => {
+      const idx = [...tbody.children].indexOf(tr);
+      if (idx !== -1) rowCheckboxes.splice(idx, 1);
+      tr.remove();
+    });
+    checkTd.appendChild(delBtn);
     tr.appendChild(checkTd);
 
     // DnD ハンドル
@@ -1828,10 +1821,7 @@ function buildEditableSummaryTable(commonEntries, slideData) {
 
   commonEntries.forEach((entry) => tbody.appendChild(makeRow(entry)));
 
-  // 全選択チェック連動
-  allCheck.addEventListener("change", () => {
-    rowCheckboxes.forEach((cb, i) => { cb.checked = allCheck.checked; });
-  });
+  // rowCheckboxes は getCheckedTsv で行インデックスとして使用（全行対象）
 
   table.appendChild(tbody);
   tableWrap.appendChild(table);
@@ -1852,11 +1842,10 @@ function buildEditableSummaryTable(commonEntries, slideData) {
   });
   tableWrap.appendChild(addRowBtn);
 
-  // TSV生成（チェック行のみ・入力値を使用）
+  // TSV生成（全行・入力値を使用）
   const getCheckedTsv = () => {
     const rows = [...tbody.querySelectorAll("tr")];
     return rows
-      .filter((_, i) => rowCheckboxes[i]?.checked)
       .map((tr) => {
         const inputs  = [...tr.querySelectorAll("input.summary-edit-input")];
         const name    = inputs[0]?.value ?? "";

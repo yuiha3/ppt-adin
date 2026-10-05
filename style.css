@@ -1044,7 +1044,25 @@ body {
 .summary-td--sticky {
   background: #f8fafc;
   font-weight: 600;
+  min-width: 120px;  /* 項目名が見切れないよう最低幅を確保 */
 }
+
+.summary-row-delete-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #d1d5db;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.summary-row-delete-btn:hover { background: #fef2f2; border-color: #fca5a5; color: #ef4444; }
 
 .summary-td--value {
   text-align: center;
