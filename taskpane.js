@@ -1647,11 +1647,12 @@ async function collectSummaryTables() {
     const uniqueEntries = [];
 
     itemOrderMap.forEach((info, name) => {
-      const isOther     = name === "その他";
+      const isOther      = name === "その他";
       const presentInAll = info.slideValues.size === totalSlides;
-      const allNumeric  = [...info.slideValues.values()].every((v) => v !== "" && !isNaN(parseFloat(v)));
 
-      if (!isOther && presentInAll && allNumeric) {
+      // 全スライドに存在 かつ その他でない → 共通項目
+      // 一部のみ、またはその他 → 固有項目
+      if (!isOther && presentInAll) {
         commonEntries.push({ name, unit: info.unit, slideValues: info.slideValues });
       } else {
         uniqueEntries.push({ name, unit: info.unit, slideValues: info.slideValues });
@@ -2110,9 +2111,10 @@ function buildEditableSummaryTable(commonEntries, slideData) {
         const name    = inputs[0]?.value ?? "";
         const values  = inputs.slice(1, 1 + slideData.length).map((inp) => inp.value);
         const unit    = inputs[inputs.length - 1]?.value ?? "";
+        const allNumeric = values.every((v) => v === "" || !isNaN(Number(v)));
         const nums    = values.map((v) => parseFloat(v)).filter((v) => !isNaN(v));
         const places  = maxDecimalPlacesFromNumbers(nums);
-        const total   = nums.length > 0 ? sum(nums).toFixed(places) : "";
+        const total   = !allNumeric ? "-" : nums.length > 0 ? sum(nums).toFixed(places) : "";
         return [name, ...values, total, unit].join("\t");
       })
       .join("\n");
@@ -2126,9 +2128,11 @@ function updateTotalCell(tr, slideData) {
   const inputs  = [...tr.querySelectorAll("input.summary-edit-input")];
   // inputs[0]=項目, inputs[1..n]=数量, inputs[n+1]=単位
   const values  = inputs.slice(1, 1 + slideData.length).map((inp) => inp.value);
+  const allNumeric = values.every((v) => v === "" || !isNaN(Number(v)));
   const nums    = values.map((v) => parseFloat(v)).filter((v) => !isNaN(v));
   const places  = maxDecimalPlacesFromNumbers(nums);
-  const total   = nums.length > 0 ? sum(nums).toFixed(places) : "";
+  // 数値でない値が含まれる場合は「-」、全て数値なら合計を表示
+  const total   = !allNumeric ? "-" : nums.length > 0 ? sum(nums).toFixed(places) : "";
   const totalTd = tr.querySelector(".summary-td--total");
   if (totalTd) totalTd.textContent = total;
 }
