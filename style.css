@@ -1011,9 +1011,10 @@ body {
 
 .summary-collect-table {
   border-collapse: collapse;
-  table-layout: auto;   /* 各列を内容の最長テキスト幅に自動調整 */
+  table-layout: auto;
+  width: max-content;   /* 内容に基づいた幅にしてコンテナによる圧縮を防ぐ */
   font-size: 11px;
-  white-space: nowrap;  /* セル内折り返しを防いで幅を内容に合わせる */
+  white-space: nowrap;
 }
 
 .summary-th {
@@ -1552,6 +1553,7 @@ tbody tr:nth-child(even) .summary-td--sticky {
   display: block;
   width: 100%;
   margin-top: 4px;
+  margin-bottom: 12px;
   padding: 5px;
   border: 1px dashed #d1d5db;
   border-radius: 6px;
