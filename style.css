@@ -1011,9 +1011,9 @@ body {
 
 .summary-collect-table {
   border-collapse: collapse;
-  min-width: max-content;
-  width: 100%;
+  table-layout: auto;   /* 各列を内容の最長テキスト幅に自動調整 */
   font-size: 11px;
+  white-space: nowrap;  /* セル内折り返しを防いで幅を内容に合わせる */
 }
 
 .summary-th {
@@ -1501,7 +1501,6 @@ tbody tr:nth-child(even) .summary-td--sticky {
   color: #374151;
   padding: 0;
   outline: none;
-  min-width: 60px;
 }
 .summary-edit-input:focus {
   background: #eff6ff;
@@ -1525,3 +1524,20 @@ tbody tr:nth-child(even) .summary-td--sticky {
 /* DnD 中のスタイル */
 .summary-editable-row.dragging { opacity: 0.4; }
 .summary-editable-row.drag-over { outline: 2px solid #0070c0; }
+
+/* 集計まとめ：行追加ボタン */
+.summary-add-row-btn {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 5px;
+  border: 1px dashed #d1d5db;
+  border-radius: 6px;
+  background: #fafbfc;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+.summary-add-row-btn:hover { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }

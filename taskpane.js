@@ -1839,6 +1839,19 @@ function buildEditableSummaryTable(commonEntries, slideData) {
   // DnD セットアップ
   [...tbody.children].forEach((row) => setupSummaryDnD(row, tbody));
 
+  // 行追加ボタン
+  const addRowBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "summary-add-row-btn", textContent: "+ 行を追加"
+  });
+  addRowBtn.addEventListener("click", () => {
+    const emptyEntry = { name: "", unit: "", slideValues: new Map() };
+    const newRow = makeRow(emptyEntry);
+    tbody.appendChild(newRow);
+    setupSummaryDnD(newRow, tbody);
+    newRow.querySelector("input.summary-edit-input")?.focus();
+  });
+  tableWrap.appendChild(addRowBtn);
+
   // TSV生成（チェック行のみ・入力値を使用）
   const getCheckedTsv = () => {
     const rows = [...tbody.querySelectorAll("tr")];
