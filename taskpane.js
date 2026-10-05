@@ -1776,10 +1776,12 @@ function openSplitPopup(commonEntries, slideData, wrap) {
     const slideData2 = slideData.slice(selectedIdx);
     if (slideData1.length === 0 || slideData2.length === 0) return;
 
-    // 切り分え元のブロック（wrap = .summary-table-block）を2つのブロックに差し替える
-    const block1 = makeTableBlock(commonEntries, slideData1, "表1 Excel貼り付け用にコピー");
+    // 元ブロックの番号を引き継ぎ、新ブロックはカウントアップ
+    const srcIndex = Number(wrap.dataset?.tableIndex ?? 1);
+    const newIndex = getNextTableIndex();
+    const block1 = makeTableBlock(commonEntries, slideData1, srcIndex);
     const label  = makeSectionLabel("切り分け後");
-    const block2 = makeTableBlock(commonEntries, slideData2, "表2 Excel貼り付け用にコピー");
+    const block2 = makeTableBlock(commonEntries, slideData2, newIndex);
 
     // wrap の位置に block1 を挿入し、wrap を削除（block2 と label は block1 の後に追加）
     wrap.after(block2);
@@ -1796,10 +1798,12 @@ function openSplitPopup(commonEntries, slideData, wrap) {
  * 1つの表ブロック（tableWrap + ボタン行）を div.summary-table-block でラップして返す。
  * 切り分け時はこのブロック単位で差し替えるため、各表が独立したコンテナを持つ。
  */
-function makeTableBlock(commonEntries, slideData, copyLabel) {
+function makeTableBlock(commonEntries, slideData, tableIndex) {
   const block = document.createElement("div");
   block.className = "summary-table-block";
+  block.dataset.tableIndex = String(tableIndex);
 
+  const copyLabel = `表${tableIndex} Excel貼り付け用にコピー`;
   const { tableWrap, getCheckedTsv } = buildEditableSummaryTable(commonEntries, slideData);
   block.appendChild(tableWrap);
   block.appendChild(
@@ -1808,12 +1812,20 @@ function makeTableBlock(commonEntries, slideData, copyLabel) {
   return block;
 }
 
+/** #summaryCommonWrap 内の最大テーブル番号を取得 */
+function getNextTableIndex() {
+  const indices = [...document.querySelectorAll(".summary-table-block[data-table-index]")]
+    .map((el) => Number(el.dataset.tableIndex))
+    .filter((n) => !isNaN(n));
+  return indices.length > 0 ? Math.max(...indices) + 1 : 2;
+}
+
 /**
  * 共通項目コンテナを描画する（初回）。
  */
 function renderCommonBlock(commonEntries, slideData, container) {
   container.innerHTML = "";
-  container.appendChild(makeTableBlock(commonEntries, slideData, "Excel貼り付け用にコピー"));
+  container.appendChild(makeTableBlock(commonEntries, slideData, 1));
 }
 
 /** 切り分けボタン＋コピーボタンの横並び行を生成 */
