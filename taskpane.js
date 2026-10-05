@@ -63,7 +63,7 @@ let cachedFillColors = null;  // string[]
 let tableTargetSlideIndices = null;
 const PDF_RENDER_SCALE = 8.0;   // 576dpi相当（A3サイズ対応）
 const PDF_THUMB_SCALE  = 0.15;  // サムネイル縮小率
-const SLIDE_BLOCK_SIZE  = 5;    // スライド選択のブロックサイズ
+const SLIDE_BLOCK_SIZE  = 10;   // スライド選択のブロックサイズ
 const SLIDE_INLINE_LIMIT = 30;  // インライン表示の上限（超えたらポップアップ）
 
 Office.onReady(() => {
