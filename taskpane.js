@@ -62,9 +62,6 @@ let cachedFillColors = null;  // string[]
 // 集計&表作成タブの対象スライド（null = 現在のスライド、number[] = 0-basedインデックス）
 let tableTargetSlideIndices = null;
 
-// 集計まとめの最後の収集データ（表切り分けで参照）
-let summaryCommonEntries = null;
-let summarySlideData     = null;
 const PDF_RENDER_SCALE = 8.0;   // 576dpi相当（A3サイズ対応）
 const PDF_THUMB_SCALE  = 0.15;  // サムネイル縮小率
 const SLIDE_BLOCK_SIZE  = 10;   // スライド選択のブロックサイズ
@@ -1662,10 +1659,6 @@ async function collectSummaryTables() {
     });
 
     // ── ⑥ アドイン内に表示 ────────────────────────────
-    // 表切り分けで参照できるようにキャッシュ
-    summaryCommonEntries = commonEntries;
-    summarySlideData     = slideData;
-
     renderSummaryAll(commonEntries, uniqueEntries, slideData);
     showSummaryStatus(
       `${slideData.length}枚のスライドから表の情報を収集しました。`,
