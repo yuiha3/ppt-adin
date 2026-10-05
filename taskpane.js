@@ -1776,20 +1776,15 @@ function openSplitPopup(commonEntries, slideData, wrap) {
     const slideData2 = slideData.slice(selectedIdx);
     if (slideData1.length === 0 || slideData2.length === 0) return;
 
-    // #summaryCommonWrap のみ再描画（固有項目ブロックは維持）
-    const container = document.getElementById("summaryCommonWrap") ?? wrap;
-    container.innerHTML = "";
+    // 切り分え元のブロック（wrap = .summary-table-block）を2つのブロックに差し替える
+    const block1 = makeTableBlock(commonEntries, slideData1, "表1 Excel貼り付け用にコピー");
+    const label  = makeSectionLabel("切り分け後");
+    const block2 = makeTableBlock(commonEntries, slideData2, "表2 Excel貼り付け用にコピー");
 
-    // 1つ目の表
-    const { tableWrap: t1, getCheckedTsv: tsv1 } = buildEditableSummaryTable(commonEntries, slideData1);
-    container.appendChild(t1);
-    container.appendChild(makeSummaryBtnRow(commonEntries, slideData1, container, tsv1, "表1 Excel貼り付け用にコピー"));
-
-    // 2つ目の表（同じ項目名）
-    container.appendChild(makeSectionLabel("切り分け後"));
-    const { tableWrap: t2, getCheckedTsv: tsv2 } = buildEditableSummaryTable(commonEntries, slideData2);
-    container.appendChild(t2);
-    container.appendChild(makeSummaryBtnRow(commonEntries, slideData2, container, tsv2, "表2 Excel貼り付け用にコピー"));
+    // wrap の位置に block1 を挿入し、wrap を削除（block2 と label は block1 の後に追加）
+    wrap.after(block2);
+    wrap.after(label);
+    wrap.replaceWith(block1);
   });
   dialog.appendChild(execBtn);
 
@@ -1798,15 +1793,27 @@ function openSplitPopup(commonEntries, slideData, wrap) {
 }
 
 /**
- * 共通項目コンテナを描画する（初回・切り分け後の再描画で共用）。
+ * 1つの表ブロック（tableWrap + ボタン行）を div.summary-table-block でラップして返す。
+ * 切り分け時はこのブロック単位で差し替えるため、各表が独立したコンテナを持つ。
+ */
+function makeTableBlock(commonEntries, slideData, copyLabel) {
+  const block = document.createElement("div");
+  block.className = "summary-table-block";
+
+  const { tableWrap, getCheckedTsv } = buildEditableSummaryTable(commonEntries, slideData);
+  block.appendChild(tableWrap);
+  block.appendChild(
+    makeSummaryBtnRow(commonEntries, slideData, block, getCheckedTsv, copyLabel)
+  );
+  return block;
+}
+
+/**
+ * 共通項目コンテナを描画する（初回）。
  */
 function renderCommonBlock(commonEntries, slideData, container) {
   container.innerHTML = "";
-  const { tableWrap, getCheckedTsv } = buildEditableSummaryTable(commonEntries, slideData);
-  container.appendChild(tableWrap);
-  container.appendChild(
-    makeSummaryBtnRow(commonEntries, slideData, container, getCheckedTsv, "Excel貼り付け用にコピー")
-  );
+  container.appendChild(makeTableBlock(commonEntries, slideData, "Excel貼り付け用にコピー"));
 }
 
 /** 切り分けボタン＋コピーボタンの横並び行を生成 */
