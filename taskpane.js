@@ -254,6 +254,7 @@ function initializeSummaryButtons() {
   bindClick("sumSelectedTextAndFillColorButton", sumNumbersBySelectedTextColorAndFillColor);
   bindClick("formatBlackCodeButton",            () => formatCodesByTextColor(COLORS.BLACK, false));
   bindClick("formatAllSlidesBlackCodeButton",   () => formatCodesByTextColor(COLORS.BLACK, true));
+  bindClick("photomassButton",                  collectPhotomass);
   bindClick("sumAreaByColorButton",             sumAreaBySelectedTextColor);
   bindClick("collectRedTextButton",             collectRedTextFromSlide);
   bindClick("sumEfuroButton",                   sumEfuroFromSlide);
@@ -2576,6 +2577,150 @@ function makeSectionLabel(text) {
     className: "section-label summary-section-label", textContent: text
   });
   return el;
+}
+
+// ─── フォトマス ──────────────────────────────────────────
+
+/**
+ * フォトマス用写真番号集計。
+ * 全スライドから写真番号を収集してスライドごとに一覧表示する。
+ * photoResults: { slideName: string, value: string }[]
+ */
+async function collectPhotomass() {
+  const section = document.getElementById("photomassSection");
+  if (!section) return;
+  section.style.display = "block";
+  section.replaceChildren(Object.assign(document.createElement("p"), {
+    className: "photomass-loading", textContent: "収集中..."
+  }));
+
+  try {
+    const photoResults = await PowerPoint.run(async (context) => {
+      const allSlides = context.presentation.slides;
+      allSlides.load("items");
+      await context.sync();
+
+      const results = [];
+      for (let i = 0; i < allSlides.items.length; i++) {
+        const slide = allSlides.items[i];
+        const codes = await collectGroupedCodes(context, [slide], COLORS.BLACK);
+        results.push({
+          slideName: `スライド${i + 1}`,
+          value: codes.length > 0 ? codes.join("\n") : ""
+        });
+      }
+      return results;
+    });
+
+    renderPhotomass(photoResults, section);
+  } catch (e) {
+    console.error(e);
+    section.replaceChildren(Object.assign(document.createElement("p"), {
+      className: "photomass-loading", textContent: "取得に失敗しました。"
+    }));
+  }
+}
+
+/**
+ * photoResults を DOM に描画する。
+ * 結合後の再描画でも使用するため独立した関数にする。
+ */
+function renderPhotomass(photoResults, section) {
+  section.innerHTML = "";
+
+  // 各スライドの行
+  photoResults.forEach(({ slideName, value }) => {
+    const row = document.createElement("div");
+    row.className = "photomass-row";
+
+    const nameEl = Object.assign(document.createElement("span"), {
+      className: "photomass-slide", textContent: slideName + "："
+    });
+
+    const valueEl = Object.assign(document.createElement("span"), {
+      className: "photomass-value"
+    });
+    valueEl.textContent = value || "なし";
+
+    const copyBtn = Object.assign(document.createElement("button"), {
+      type: "button", className: "photomass-copy-btn", textContent: "コピー"
+    });
+    copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(value);
+        copyBtn.textContent = "✓ コピー済";
+        setTimeout(() => { copyBtn.textContent = "コピー"; }, 1500);
+      } catch {
+        copyBtn.textContent = "失敗";
+        setTimeout(() => { copyBtn.textContent = "コピー"; }, 1500);
+      }
+    });
+
+    row.append(nameEl, valueEl, copyBtn);
+    section.appendChild(row);
+  });
+
+  // 写真番号を結合ボタン
+  const mergeBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "photomass-merge-btn", textContent: "写真番号を結合"
+  });
+  mergeBtn.addEventListener("click", () => openPhotomasseMergePopup(photoResults, section));
+  section.appendChild(mergeBtn);
+}
+
+/**
+ * 写真番号を結合するポップアップを開く。
+ * チェックしたスライドの写真番号を連結して1行にまとめる。
+ */
+function openPhotomasseMergePopup(photoResults, section) {
+  const { overlay, body, addExecBtn } = makeSummaryPopup(
+    "photomassMergePopup",
+    "結合するスライドを選択",
+    "チェックしたスライドの写真番号を連結して1行にまとめます。重複はそのまま表示します。"
+  );
+
+  const checkboxes = [];
+  photoResults.forEach(({ slideName, value }, i) => {
+    const label = document.createElement("label");
+    label.className = "split-radio-label";
+    const cb = Object.assign(document.createElement("input"), { type: "checkbox", checked: false });
+    checkboxes.push({ cb, index: i, slideName, value });
+    label.append(cb, slideName);
+    body.appendChild(label);
+  });
+
+  addExecBtn("選択スライドの写真番号を結合", (execBtn) => {
+    const selected = checkboxes.filter(({ cb }) => cb.checked);
+    if (selected.length < 2) {
+      execBtn.textContent = "2つ以上選択してください";
+      setTimeout(() => { execBtn.textContent = "選択スライドの写真番号を結合"; }, 1500);
+      return;
+    }
+    overlay.remove();
+
+    // 結合後の slideName（「スライド1,2」形式）
+    const mergedName = "スライド" + selected.map(({ slideName }) => slideName.replace("スライド", "")).join(",");
+
+    // 結合後の value（重複そのまま連結）
+    const mergedValue = selected
+      .map(({ value }) => value)
+      .filter((v) => v && v !== "なし")
+      .join("\n");
+
+    // 選択した行を1行に置き換え（最初のインデックスに配置、残りを削除）
+    const selectedIndices = new Set(selected.map(({ index }) => index));
+    const firstIdx = selected[0].index;
+
+    const newResults = photoResults
+      .map((item, i) => {
+        if (i === firstIdx) return { slideName: mergedName, value: mergedValue };
+        if (selectedIndices.has(i)) return null; // 削除
+        return item;
+      })
+      .filter(Boolean);
+
+    renderPhotomass(newResults, section);
+  });
 }
 
 async function collectRedTextFromSlide() {

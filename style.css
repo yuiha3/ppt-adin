@@ -1670,3 +1670,75 @@ tbody tr:nth-child(even) .summary-td--sticky {
   color: #374151;
   margin: 8px 0 2px;
 }
+
+/* =============================================
+   フォトマスセクション
+   ============================================= */
+.photomass-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.photomass-loading {
+  font-size: 11px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.photomass-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.photomass-slide {
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.photomass-value {
+  font-size: 11px;
+  color: #1a1d23;
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.photomass-copy-btn {
+  padding: 3px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s, border-color 0.1s;
+}
+.photomass-copy-btn:hover { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+
+.photomass-merge-btn {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  margin-top: 4px;
+  transition: background 0.1s;
+}
+.photomass-merge-btn:hover { background: #f0fdf4; border-color: #86efac; color: #166534; }
