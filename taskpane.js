@@ -61,6 +61,10 @@ let cachedFillColors = null;  // string[]
 
 // 集計&表作成タブの対象スライド（null = 現在のスライド、number[] = 0-basedインデックス）
 let tableTargetSlideIndices = null;
+
+// 集計まとめの最後の収集データ（表切り分けで参照）
+let summaryCommonEntries = null;
+let summarySlideData     = null;
 const PDF_RENDER_SCALE = 8.0;   // 576dpi相当（A3サイズ対応）
 const PDF_THUMB_SCALE  = 0.15;  // サムネイル縮小率
 const SLIDE_BLOCK_SIZE  = 10;   // スライド選択のブロックサイズ
@@ -1658,6 +1662,10 @@ async function collectSummaryTables() {
     });
 
     // ── ⑥ アドイン内に表示 ────────────────────────────
+    // 表切り分けで参照できるようにキャッシュ
+    summaryCommonEntries = commonEntries;
+    summarySlideData     = slideData;
+
     renderSummaryAll(commonEntries, uniqueEntries, slideData);
     showSummaryStatus(
       `${slideData.length}枚のスライドから表の情報を収集しました。`,
@@ -1688,6 +1696,12 @@ function renderSummaryAll(commonEntries, uniqueEntries, slideData) {
     const { tableWrap, getCheckedTsv } = buildEditableSummaryTable(commonEntries, slideData);
     wrap.appendChild(tableWrap);
 
+    // 表切り分けボタン
+    const splitBtn = Object.assign(document.createElement("button"), {
+      type: "button", className: "summary-split-btn",
+      textContent: "表切り分け"
+    });
+    splitBtn.addEventListener("click", () => openSplitPopup(commonEntries, slideData, wrap));
     const copyBtn = Object.assign(document.createElement("button"), {
       type: "button", className: "summary-excel-copy-btn",
       textContent: "Excel貼り付け用にコピー"
@@ -1703,7 +1717,12 @@ function renderSummaryAll(commonEntries, uniqueEntries, slideData) {
         setTimeout(() => { copyBtn.textContent = "Excel貼り付け用にコピー"; }, 1500);
       }
     });
-    wrap.appendChild(copyBtn);
+
+    // ボタンを横並びで表示
+    const btnRow = document.createElement("div");
+    btnRow.className = "summary-btn-row";
+    btnRow.append(splitBtn, copyBtn);
+    wrap.appendChild(btnRow);
   }
 
   // ── 固有項目ブロック（読み取り専用・存在しないスライドは「-」）──
@@ -1711,6 +1730,112 @@ function renderSummaryAll(commonEntries, uniqueEntries, slideData) {
     wrap.appendChild(makeSectionLabel("固有項目"));
     wrap.appendChild(buildUniqueSummaryTable(uniqueEntries, slideData));
   }
+}
+
+/**
+ * 表切り分けポップアップを開く。
+ * スライド一覧をラジオボタンで表示し、選択スライド以降を別ブロックとして追加する。
+ */
+function openSplitPopup(commonEntries, slideData, wrap) {
+  document.getElementById("splitPopup")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "splitPopup";
+  overlay.className = "slide-popup-overlay";
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+
+  const dialog = document.createElement("div");
+  dialog.className = "split-popup-dialog";
+
+  // ヘッダー
+  const header = document.createElement("div");
+  header.className = "slide-popup-header";
+  header.appendChild(Object.assign(document.createElement("span"), {
+    className: "slide-popup-title", textContent: "表の切り分け位置を選択"
+  }));
+  const closeBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "slide-popup-close", textContent: "✕"
+  });
+  closeBtn.addEventListener("click", () => overlay.remove());
+  header.appendChild(closeBtn);
+  dialog.appendChild(header);
+
+  // 説明
+  const desc = Object.assign(document.createElement("p"), {
+    className: "split-popup-desc",
+    textContent: "選択したスライド列以降を別の表として切り分けます。"
+  });
+  dialog.appendChild(desc);
+
+  // ラジオボタン一覧（スライド2以降が選択可能）
+  const body = document.createElement("div");
+  body.className = "split-popup-body";
+
+  let selectedIdx = 1; // デフォルト：2番目のスライド
+  slideData.slice(1).forEach(({ slideName }, i) => {
+    const actualIdx = i + 1;
+    const label = document.createElement("label");
+    label.className = "split-radio-label";
+    const radio = Object.assign(document.createElement("input"), {
+      type: "radio", name: "splitSlide",
+      value: String(actualIdx),
+      checked: actualIdx === selectedIdx
+    });
+    radio.addEventListener("change", () => { selectedIdx = actualIdx; });
+    label.append(radio, `${slideName}から切り分け`);
+    body.appendChild(label);
+  });
+  dialog.appendChild(body);
+
+  // 実行ボタン
+  const execBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "split-exec-btn",
+    textContent: "選択スライドから切り分け"
+  });
+  execBtn.addEventListener("click", () => {
+    overlay.remove();
+    // slideData を [0..selectedIdx-1] と [selectedIdx..] に分割
+    const slideData1 = slideData.slice(0, selectedIdx);
+    const slideData2 = slideData.slice(selectedIdx);
+    if (slideData1.length === 0 || slideData2.length === 0) return;
+
+    // wrap 内の既存ブロック（表・ボタン）を再描画
+    wrap.innerHTML = "";
+
+    // 1つ目の表
+    const { tableWrap: t1, getCheckedTsv: tsv1 } = buildEditableSummaryTable(commonEntries, slideData1);
+    wrap.appendChild(t1);
+    wrap.appendChild(makeCopyBtnRow(() => tsv1(), "表1 Excel貼り付け用にコピー"));
+
+    // 2つ目の表（同じ項目名）
+    wrap.appendChild(makeSectionLabel("切り分け後"));
+    const { tableWrap: t2, getCheckedTsv: tsv2 } = buildEditableSummaryTable(commonEntries, slideData2);
+    wrap.appendChild(t2);
+    wrap.appendChild(makeCopyBtnRow(() => tsv2(), "表2 Excel貼り付け用にコピー"));
+  });
+  dialog.appendChild(execBtn);
+
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+}
+
+/** コピーボタン1つを含む行を生成 */
+function makeCopyBtnRow(getTsv, label) {
+  const btn = Object.assign(document.createElement("button"), {
+    type: "button", className: "summary-excel-copy-btn", textContent: label
+  });
+  btn.addEventListener("click", async () => {
+    const tsv = getTsv();
+    try {
+      await navigator.clipboard.writeText(tsv);
+      btn.textContent = "✓ コピー済";
+      setTimeout(() => { btn.textContent = label; }, 1500);
+    } catch {
+      btn.textContent = "失敗";
+      setTimeout(() => { btn.textContent = label; }, 1500);
+    }
+  });
+  return btn;
 }
 
 /**
