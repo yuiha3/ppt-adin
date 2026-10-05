@@ -2701,10 +2701,17 @@ function openPhotomasseMergePopup(photoResults, section) {
     // 結合後の slideName（「スライド1,2」形式）
     const mergedName = "スライド" + selected.map(({ slideName }) => slideName.replace("スライド", "")).join(",");
 
-    // 結合後の value（重複そのまま連結）
-    const mergedValue = selected
+    // 結合後の value：extractLetterCodes で再グループ化して連番圧縮
+    const allText = selected
       .map(({ value }) => value)
       .filter((v) => v && v !== "なし")
+      .join("\n");
+    const grouped = {};
+    extractLetterCodes(allText).forEach(({ letter, number }) => {
+      (grouped[letter] ??= []).push(number);
+    });
+    const mergedValue = Object.keys(grouped).sort()
+      .map((letter) => `${letter}-${compressNumberRanges(grouped[letter])}`)
       .join("\n");
 
     // 選択した行を1行に置き換え（最初のインデックスに配置、残りを削除）
