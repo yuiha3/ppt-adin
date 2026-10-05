@@ -1693,36 +1693,13 @@ function renderSummaryAll(commonEntries, uniqueEntries, slideData) {
   // ── 共通項目ブロック（DnD・編集可能・合計列付き）───────────
   if (commonEntries.length > 0) {
     wrap.appendChild(makeSectionLabel("集計結果"));
-    const { tableWrap, getCheckedTsv } = buildEditableSummaryTable(commonEntries, slideData);
-    wrap.appendChild(tableWrap);
 
-    // 表切り分けボタン
-    const splitBtn = Object.assign(document.createElement("button"), {
-      type: "button", className: "summary-split-btn",
-      textContent: "表切り分け"
-    });
-    splitBtn.addEventListener("click", () => openSplitPopup(commonEntries, slideData, wrap));
-    const copyBtn = Object.assign(document.createElement("button"), {
-      type: "button", className: "summary-excel-copy-btn",
-      textContent: "Excel貼り付け用にコピー"
-    });
-    copyBtn.addEventListener("click", async () => {
-      const tsv = getCheckedTsv();
-      try {
-        await navigator.clipboard.writeText(tsv);
-        copyBtn.textContent = "✓ コピー済";
-        setTimeout(() => { copyBtn.textContent = "Excel貼り付け用にコピー"; }, 1500);
-      } catch {
-        copyBtn.textContent = "失敗";
-        setTimeout(() => { copyBtn.textContent = "Excel貼り付け用にコピー"; }, 1500);
-      }
-    });
+    // 共通項目ブロック専用コンテナ（切り分け時はここだけ再描画）
+    const commonWrap = document.createElement("div");
+    commonWrap.id = "summaryCommonWrap";
+    wrap.appendChild(commonWrap);
 
-    // ボタンを横並びで表示
-    const btnRow = document.createElement("div");
-    btnRow.className = "summary-btn-row";
-    btnRow.append(splitBtn, copyBtn);
-    wrap.appendChild(btnRow);
+    renderCommonBlock(commonEntries, slideData, commonWrap);
   }
 
   // ── 固有項目ブロック（読み取り専用・存在しないスライドは「-」）──
@@ -1799,19 +1776,20 @@ function openSplitPopup(commonEntries, slideData, wrap) {
     const slideData2 = slideData.slice(selectedIdx);
     if (slideData1.length === 0 || slideData2.length === 0) return;
 
-    // wrap 内の既存ブロック（表・ボタン）を再描画
-    wrap.innerHTML = "";
+    // #summaryCommonWrap のみ再描画（固有項目ブロックは維持）
+    const container = document.getElementById("summaryCommonWrap") ?? wrap;
+    container.innerHTML = "";
 
     // 1つ目の表
     const { tableWrap: t1, getCheckedTsv: tsv1 } = buildEditableSummaryTable(commonEntries, slideData1);
-    wrap.appendChild(t1);
-    wrap.appendChild(makeSummaryBtnRow(commonEntries, slideData1, wrap, tsv1, "表1 Excel貼り付け用にコピー"));
+    container.appendChild(t1);
+    container.appendChild(makeSummaryBtnRow(commonEntries, slideData1, container, tsv1, "表1 Excel貼り付け用にコピー"));
 
     // 2つ目の表（同じ項目名）
-    wrap.appendChild(makeSectionLabel("切り分け後"));
+    container.appendChild(makeSectionLabel("切り分け後"));
     const { tableWrap: t2, getCheckedTsv: tsv2 } = buildEditableSummaryTable(commonEntries, slideData2);
-    wrap.appendChild(t2);
-    wrap.appendChild(makeSummaryBtnRow(commonEntries, slideData2, wrap, tsv2, "表2 Excel貼り付け用にコピー"));
+    container.appendChild(t2);
+    container.appendChild(makeSummaryBtnRow(commonEntries, slideData2, container, tsv2, "表2 Excel貼り付け用にコピー"));
   });
   dialog.appendChild(execBtn);
 
@@ -1819,23 +1797,44 @@ function openSplitPopup(commonEntries, slideData, wrap) {
   document.body.appendChild(overlay);
 }
 
-/** コピーボタン1つを含む行を生成 */
-function makeCopyBtnRow(getTsv, label) {
-  const btn = Object.assign(document.createElement("button"), {
-    type: "button", className: "summary-excel-copy-btn", textContent: label
+/**
+ * 共通項目コンテナを描画する（初回・切り分け後の再描画で共用）。
+ */
+function renderCommonBlock(commonEntries, slideData, container) {
+  container.innerHTML = "";
+  const { tableWrap, getCheckedTsv } = buildEditableSummaryTable(commonEntries, slideData);
+  container.appendChild(tableWrap);
+  container.appendChild(
+    makeSummaryBtnRow(commonEntries, slideData, container, getCheckedTsv, "Excel貼り付け用にコピー")
+  );
+}
+
+/** 切り分けボタン＋コピーボタンの横並び行を生成 */
+function makeSummaryBtnRow(commonEntries, slideData, container, getTsv, copyLabel) {
+  const splitBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "summary-split-btn", textContent: "表切り分け"
   });
-  btn.addEventListener("click", async () => {
+  splitBtn.addEventListener("click", () => openSplitPopup(commonEntries, slideData, container));
+
+  const copyBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "summary-excel-copy-btn", textContent: copyLabel
+  });
+  copyBtn.addEventListener("click", async () => {
     const tsv = getTsv();
     try {
       await navigator.clipboard.writeText(tsv);
-      btn.textContent = "✓ コピー済";
-      setTimeout(() => { btn.textContent = label; }, 1500);
+      copyBtn.textContent = "✓ コピー済";
+      setTimeout(() => { copyBtn.textContent = copyLabel; }, 1500);
     } catch {
-      btn.textContent = "失敗";
-      setTimeout(() => { btn.textContent = label; }, 1500);
+      copyBtn.textContent = "失敗";
+      setTimeout(() => { copyBtn.textContent = copyLabel; }, 1500);
     }
   });
-  return btn;
+
+  const row = document.createElement("div");
+  row.className = "summary-btn-row";
+  row.append(splitBtn, copyBtn);
+  return row;
 }
 
 /**
