@@ -1491,3 +1491,37 @@ tbody tr:nth-child(even) .summary-td--sticky {
   align-content: flex-start;
   gap: 6px;
 }
+
+/* 集計まとめ：編集可能セル */
+.summary-edit-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  color: #374151;
+  padding: 0;
+  outline: none;
+  min-width: 60px;
+}
+.summary-edit-input:focus {
+  background: #eff6ff;
+  border-radius: 2px;
+}
+.summary-edit-input--center { text-align: center; }
+
+/* DnD ハンドル列 */
+.summary-th--handle,
+.summary-td--handle {
+  width: 18px;
+  min-width: 18px;
+  text-align: center;
+  color: #9ca3af;
+  cursor: grab;
+  font-size: 13px;
+  padding: 4px 2px;
+  user-select: none;
+}
+
+/* DnD 中のスタイル */
+.summary-editable-row.dragging { opacity: 0.4; }
+.summary-editable-row.drag-over { outline: 2px solid #0070c0; }

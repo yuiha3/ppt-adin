@@ -1619,43 +1619,46 @@ async function collectSummaryTables() {
       rows: cells.map((row) => row.map((cell) => (cell.isNullObject ? "" : cell.text ?? "")))
     }));
 
-    // ── ⑤ 項目列・単位列の一致チェック ──────────────────
-    const itemLists = slideData.map(({ rows }) =>
-      rows.slice(1).map((row) => row[0] ?? "")
-    );
-    const unitLists = slideData.map(({ rows }) =>
-      rows.slice(1).map((row) => row[2] ?? "")
-    );
+    // ── ⑤ 項目の和集合を取り、共通・固有に分類 ───────────
+    // 各スライドの項目マップ: { itemName -> { qty, unit } }
+    // 項目の登場順を保持するため最初に出現したスライド順で並べる
+    const itemOrderMap = new Map(); // name -> { unit, slideValues: Map<slideIndex, qty> }
 
-    const baseItems = itemLists[0];
-    const baseUnits = unitLists[0];
+    slideData.forEach(({ slideIndex, rows }) => {
+      rows.slice(1).forEach((row) => {
+        const name = row[0] ?? "";
+        const qty  = row[1] ?? "";
+        const unit = row[2] ?? "";
+        if (!name || name === "写真番号") return;
+        if (!itemOrderMap.has(name)) {
+          itemOrderMap.set(name, { unit, slideValues: new Map() });
+        }
+        itemOrderMap.get(name).slideValues.set(slideIndex, qty);
+      });
+    });
 
-    const itemsMatch = itemLists.every(
-      (items) => items.length === baseItems.length &&
-                 items.every((item, i) => item === baseItems[i])
-    );
-    if (!itemsMatch) {
-      showSummaryStatus(
-        "スライド間で項目の順番または内容が一致しないため表示できません。",
-        "error"
-      );
-      return;
-    }
+    const slideIndices = slideData.map((d) => d.slideIndex);
+    const totalSlides  = slideIndices.length;
 
-    const unitsMatch = unitLists.every(
-      (units) => units.length === baseUnits.length &&
-                 units.every((unit, i) => unit === baseUnits[i])
-    );
-    if (!unitsMatch) {
-      showSummaryStatus(
-        "スライド間で単位が一致しないため表示できません。",
-        "error"
-      );
-      return;
-    }
+    // 共通項目：全スライドに存在 かつ 全て数値 かつ「その他」でない
+    // 固有項目：それ以外（一部のみ・文字値あり・その他）
+    const commonEntries = [];
+    const uniqueEntries = [];
 
-    // ── ⑥ アドイン内に3ブロックに分けて表示 ───────────
-    renderSummaryAll(baseItems, baseUnits, slideData);
+    itemOrderMap.forEach((info, name) => {
+      const isOther     = name === "その他";
+      const presentInAll = info.slideValues.size === totalSlides;
+      const allNumeric  = [...info.slideValues.values()].every((v) => v !== "" && !isNaN(parseFloat(v)));
+
+      if (!isOther && presentInAll && allNumeric) {
+        commonEntries.push({ name, unit: info.unit, slideValues: info.slideValues });
+      } else {
+        uniqueEntries.push({ name, unit: info.unit, slideValues: info.slideValues });
+      }
+    });
+
+    // ── ⑥ アドイン内に表示 ────────────────────────────
+    renderSummaryAll(commonEntries, uniqueEntries, slideData);
     showSummaryStatus(
       `${slideData.length}枚のスライドから表の情報を収集しました。`,
       "success"
@@ -1669,34 +1672,24 @@ async function collectSummaryTables() {
  * - その他：横スクロール表
  * - 写真番号：各スライドの値 + コピーボタン
  */
-function renderSummaryAll(baseItems, baseUnits, slideData) {
+/**
+ * 共通項目・固有項目を2ブロックに分けて表示する。
+ * commonEntries: 全スライドに存在し全て数値の項目
+ * uniqueEntries: 一部のみ・文字値あり・その他の項目
+ */
+function renderSummaryAll(commonEntries, uniqueEntries, slideData) {
   const wrap = document.getElementById("summaryCollectTableWrap");
   if (!wrap) return;
   wrap.innerHTML = "";
 
-  // 元のインデックスを保持したまま1回のループで3種類に分類
-  const normalEntries = [], otherEntries = [], photoEntries = [];
-  baseItems.forEach((name, originalIndex) => {
-    const entry = { name, originalIndex, unit: baseUnits[originalIndex] ?? "" };
-    if      (name === "写真番号") photoEntries.push(entry);
-    else if (name === "その他")   otherEntries.push(entry);
-    else                          normalEntries.push(entry);
-  });
-
-  // 列インデックスを指定して値を取得するヘルパー
-  // rows[0] = ヘッダー行、rows[originalIndex + 1] = データ行
-  const getValue = (rows, originalIndex, col = 1) => rows[originalIndex + 1]?.[col] ?? "";
-
-  // ── 通常項目ブロック（合計・単位列付き）────────────────
-  if (normalEntries.length > 0) {
+  // ── 共通項目ブロック（DnD・編集可能・合計列付き）───────────
+  if (commonEntries.length > 0) {
     wrap.appendChild(makeSectionLabel("集計結果"));
-    const { tableWrap, getCheckedTsv } = buildNormalSummaryTable(normalEntries, slideData, getValue);
+    const { tableWrap, getCheckedTsv } = buildEditableSummaryTable(commonEntries, slideData);
     wrap.appendChild(tableWrap);
 
-    // Excel貼り付け用コピーボタン（チェック行のみ・合計・単位列を含む）
     const copyBtn = Object.assign(document.createElement("button"), {
-      type: "button",
-      className: "summary-excel-copy-btn",
+      type: "button", className: "summary-excel-copy-btn",
       textContent: "Excel貼り付け用にコピー"
     });
     copyBtn.addEventListener("click", async () => {
@@ -1718,55 +1711,236 @@ function renderSummaryAll(baseItems, baseUnits, slideData) {
     wrap.appendChild(copyBtn);
   }
 
-  // ── その他ブロック ────────────────────────────────────
-  if (otherEntries.length > 0) {
-    wrap.appendChild(makeSectionLabel("その他"));
-    wrap.appendChild(buildSummaryTable(otherEntries, slideData, getValue));
+  // ── 固有項目ブロック（読み取り専用・存在しないスライドは「-」）──
+  if (uniqueEntries.length > 0) {
+    wrap.appendChild(makeSectionLabel("固有項目"));
+    wrap.appendChild(buildUniqueSummaryTable(uniqueEntries, slideData));
   }
+}
 
-  // ── 写真番号ブロック ──────────────────────────────────
-  if (photoEntries.length > 0) {
-    wrap.appendChild(makeSectionLabel("写真番号"));
-    const photoWrap = document.createElement("div");
-    photoWrap.className = "summary-photo-list";
+/**
+ * 共通項目用：DnD可能・編集可能・チェックボックス・合計列・単位列付き表を生成。
+ * commonEntries: [{ name, unit, slideValues: Map<slideIndex, qty> }]
+ */
+function buildEditableSummaryTable(commonEntries, slideData) {
+  const tableWrap = document.createElement("div");
+  tableWrap.className = "summary-collect-wrap";
 
-    slideData.forEach(({ slideName, rows }) => {
-      photoEntries.forEach(({ originalIndex }) => {
-        const value = getValue(rows, originalIndex);
-        const row = document.createElement("div");
-        row.className = "summary-photo-row";
+  const table = document.createElement("table");
+  table.className = "summary-collect-table";
 
-        row.appendChild(Object.assign(document.createElement("span"), {
-          className: "summary-photo-slide", textContent: slideName + "："
-        }));
-        const valueEl = Object.assign(document.createElement("span"), {
-          className: "summary-photo-value"
-        });
-        // \n（段落区切り）と \v（ラインブレーク）を改行として表示
-        valueEl.textContent = (value || "なし").replace(/\v/g, "\n");
-        row.appendChild(valueEl);
+  // ── ヘッダー行 ──────────────────────────────────────────
+  const thead = document.createElement("thead");
+  const hRow  = document.createElement("tr");
 
-        const copyBtn = Object.assign(document.createElement("button"), {
-          type: "button", className: "summary-photo-copy", textContent: "コピー"
-        });
-        copyBtn.addEventListener("click", async () => {
-          try {
-            await navigator.clipboard.writeText(value);
-            copyBtn.textContent = "✓ コピー済";
-            setTimeout(() => { copyBtn.textContent = "コピー"; }, 1500);
-          } catch {
-            copyBtn.textContent = "失敗";
-            setTimeout(() => { copyBtn.textContent = "コピー"; }, 1500);
-          }
-        });
+  // 全選択チェック
+  const allCheckTh = document.createElement("th");
+  allCheckTh.className = "summary-th summary-th--check";
+  const allCheck = Object.assign(document.createElement("input"), { type: "checkbox", checked: true });
+  allCheckTh.appendChild(allCheck);
+  hRow.appendChild(allCheckTh);
 
-        row.appendChild(copyBtn);
-        photoWrap.appendChild(row);
+  // DnD ハンドル列
+  hRow.appendChild(Object.assign(document.createElement("th"), { className: "summary-th summary-th--handle" }));
+  // 項目列
+  hRow.appendChild(Object.assign(document.createElement("th"), { className: "summary-th summary-th--sticky", textContent: "項目" }));
+  // スライド列
+  slideData.forEach(({ slideName }) => {
+    hRow.appendChild(Object.assign(document.createElement("th"), { className: "summary-th", textContent: slideName }));
+  });
+  hRow.appendChild(Object.assign(document.createElement("th"), { className: "summary-th summary-th--total", textContent: "合計" }));
+  hRow.appendChild(Object.assign(document.createElement("th"), { className: "summary-th summary-th--unit", textContent: "単位" }));
+
+  thead.appendChild(hRow);
+  table.appendChild(thead);
+
+  // ── データ行 ─────────────────────────────────────────────
+  const tbody = document.createElement("tbody");
+  const rowCheckboxes = [];
+
+  const makeRow = (entry) => {
+    const tr = document.createElement("tr");
+    tr.draggable = true;
+    tr.className = "summary-editable-row";
+
+    // チェックボックス
+    const checkTd = document.createElement("td");
+    checkTd.className = "summary-td summary-td--check";
+    const cb = Object.assign(document.createElement("input"), { type: "checkbox", checked: true });
+    cb.addEventListener("change", () => {
+      const all  = rowCheckboxes.every((c) => c.checked);
+      const none = rowCheckboxes.every((c) => !c.checked);
+      allCheck.checked       = all;
+      allCheck.indeterminate = !all && !none;
+    });
+    rowCheckboxes.push(cb);
+    checkTd.appendChild(cb);
+    tr.appendChild(checkTd);
+
+    // DnD ハンドル
+    const handleTd = document.createElement("td");
+    handleTd.className = "summary-td summary-td--handle";
+    handleTd.textContent = "⠿";
+    tr.appendChild(handleTd);
+
+    // 項目名（編集可能）
+    const nameTd = document.createElement("td");
+    nameTd.className = "summary-td summary-td--sticky";
+    const nameInput = Object.assign(document.createElement("input"), {
+      type: "text", value: entry.name, className: "summary-edit-input"
+    });
+    nameTd.appendChild(nameInput);
+    tr.appendChild(nameTd);
+
+    // 各スライドの数量（編集可能）
+    slideData.forEach(({ slideIndex }) => {
+      const td = document.createElement("td");
+      td.className = "summary-td summary-td--value";
+      const qtyInput = Object.assign(document.createElement("input"), {
+        type: "text",
+        value: entry.slideValues.get(slideIndex) ?? "",
+        className: "summary-edit-input summary-edit-input--center"
       });
+      // 数量変更時に合計セルを更新
+      qtyInput.addEventListener("input", () => updateTotalCell(tr, slideData));
+      td.appendChild(qtyInput);
+      tr.appendChild(td);
     });
 
-    wrap.appendChild(photoWrap);
-  }
+    // 合計列
+    const totalTd = document.createElement("td");
+    totalTd.className = "summary-td summary-td--value summary-td--total";
+    tr.appendChild(totalTd);
+
+    // 単位列（編集可能）
+    const unitTd = document.createElement("td");
+    unitTd.className = "summary-td summary-td--unit-cell";
+    const unitInput = Object.assign(document.createElement("input"), {
+      type: "text", value: entry.unit, className: "summary-edit-input summary-edit-input--center"
+    });
+    unitTd.appendChild(unitInput);
+    tr.appendChild(unitTd);
+
+    // 合計を初期計算
+    updateTotalCell(tr, slideData);
+    return tr;
+  };
+
+  commonEntries.forEach((entry) => tbody.appendChild(makeRow(entry)));
+
+  // 全選択チェック連動
+  allCheck.addEventListener("change", () => {
+    rowCheckboxes.forEach((cb, i) => { cb.checked = allCheck.checked; });
+  });
+
+  table.appendChild(tbody);
+  tableWrap.appendChild(table);
+
+  // DnD セットアップ
+  [...tbody.children].forEach((row) => setupSummaryDnD(row, tbody));
+
+  // TSV生成（チェック行のみ・入力値を使用）
+  const getCheckedTsv = () => {
+    const rows = [...tbody.querySelectorAll("tr")];
+    return rows
+      .filter((_, i) => rowCheckboxes[i]?.checked)
+      .map((tr) => {
+        const inputs  = [...tr.querySelectorAll("input.summary-edit-input")];
+        const name    = inputs[0]?.value ?? "";
+        const values  = inputs.slice(1, 1 + slideData.length).map((inp) => inp.value);
+        const unit    = inputs[inputs.length - 1]?.value ?? "";
+        const nums    = values.map((v) => parseFloat(v)).filter((v) => !isNaN(v));
+        const places  = maxDecimalPlacesFromNumbers(nums);
+        const total   = nums.length > 0 ? sum(nums).toFixed(places) : "";
+        return [name, ...values, total, unit].join("\t");
+      })
+      .join("\n");
+  };
+
+  return { tableWrap, getCheckedTsv };
+}
+
+/** 行の数量inputから合計を再計算してtotalセルに反映 */
+function updateTotalCell(tr, slideData) {
+  const inputs  = [...tr.querySelectorAll("input.summary-edit-input")];
+  // inputs[0]=項目, inputs[1..n]=数量, inputs[n+1]=単位
+  const values  = inputs.slice(1, 1 + slideData.length).map((inp) => inp.value);
+  const nums    = values.map((v) => parseFloat(v)).filter((v) => !isNaN(v));
+  const places  = maxDecimalPlacesFromNumbers(nums);
+  const total   = nums.length > 0 ? sum(nums).toFixed(places) : "";
+  const totalTd = tr.querySelector(".summary-td--total");
+  if (totalTd) totalTd.textContent = total;
+}
+
+// 集計まとめ用 DnD（既存の setupDragAndDrop とは別に tbody を対象とする）
+let summaryDragSrc = null;
+function setupSummaryDnD(row, tbody) {
+  row.addEventListener("dragstart", (e) => {
+    if (e.target.matches("input")) { e.preventDefault(); return; }
+    summaryDragSrc = row;
+    row.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", "");
+  });
+  row.addEventListener("dragend", () => {
+    row.classList.remove("dragging");
+    summaryDragSrc = null;
+  });
+  row.addEventListener("dragenter", (e) => e.preventDefault());
+  row.addEventListener("dragover",  (e) => {
+    e.preventDefault();
+    if (!summaryDragSrc || summaryDragSrc === row) return;
+    row.classList.add("drag-over");
+  });
+  row.addEventListener("dragleave", () => row.classList.remove("drag-over"));
+  row.addEventListener("drop", (e) => {
+    e.preventDefault();
+    row.classList.remove("drag-over");
+    if (!summaryDragSrc || summaryDragSrc === row) return;
+    const children = [...tbody.children];
+    const after = children.indexOf(summaryDragSrc) < children.indexOf(row);
+    tbody.insertBefore(summaryDragSrc, after ? row.nextSibling : row);
+  });
+}
+
+/**
+ * 固有項目用：一部のスライドにしか存在しない項目の読み取り専用表。
+ * 存在しないスライドは「-」を表示。合計列なし。
+ */
+function buildUniqueSummaryTable(uniqueEntries, slideData) {
+  const tableWrap = document.createElement("div");
+  tableWrap.className = "summary-collect-wrap";
+
+  const table = document.createElement("table");
+  table.className = "summary-collect-table";
+
+  // ヘッダー
+  const thead = document.createElement("thead");
+  const hRow  = document.createElement("tr");
+  hRow.appendChild(Object.assign(document.createElement("th"), { className: "summary-th summary-th--sticky", textContent: "項目" }));
+  slideData.forEach(({ slideName }) => {
+    hRow.appendChild(Object.assign(document.createElement("th"), { className: "summary-th", textContent: slideName }));
+  });
+  hRow.appendChild(Object.assign(document.createElement("th"), { className: "summary-th summary-th--unit", textContent: "単位" }));
+  thead.appendChild(hRow);
+  table.appendChild(thead);
+
+  // データ行
+  const tbody = document.createElement("tbody");
+  uniqueEntries.forEach(({ name, unit, slideValues }) => {
+    const tr = document.createElement("tr");
+    tr.appendChild(Object.assign(document.createElement("td"), { className: "summary-td summary-td--sticky", textContent: name }));
+    slideData.forEach(({ slideIndex }) => {
+      const val = slideValues.has(slideIndex) ? slideValues.get(slideIndex) : "-";
+      tr.appendChild(Object.assign(document.createElement("td"), { className: "summary-td summary-td--value", textContent: val }));
+    });
+    tr.appendChild(Object.assign(document.createElement("td"), { className: "summary-td summary-td--unit-cell", textContent: unit }));
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  tableWrap.appendChild(table);
+  return tableWrap;
 }
 
 /**
