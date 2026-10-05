@@ -1662,3 +1662,11 @@ tbody tr:nth-child(even) .summary-td--sticky {
   white-space: nowrap;
 }
 .summary-merge-btn:hover { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
+
+/* 各スライドの集計表ラベル */
+.slide-raw-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+  margin: 8px 0 2px;
+}

@@ -1701,6 +1701,54 @@ function renderSummaryAll(commonEntries, uniqueEntries, slideData) {
     wrap.appendChild(makeSectionLabel("固有項目"));
     wrap.appendChild(buildUniqueSummaryTable(uniqueEntries, slideData));
   }
+
+  // ── 各スライドの元の集計表（縦並び）──────────────────────
+  if (slideData.length > 0) {
+    wrap.appendChild(makeSectionLabel("各スライドの集計表"));
+    slideData.forEach(({ slideName, rows }) => {
+      // スライド番号ラベル
+      const label = Object.assign(document.createElement("p"), {
+        className: "slide-raw-label", textContent: slideName
+      });
+      wrap.appendChild(label);
+
+      // rows[0] = ヘッダー行（＜集計＞）、rows[1..] = データ行
+      const tableWrap = document.createElement("div");
+      tableWrap.className = "summary-collect-wrap";
+
+      const table = document.createElement("table");
+      table.className = "summary-collect-table";
+
+      // ヘッダー行
+      const thead = document.createElement("thead");
+      const hRow  = document.createElement("tr");
+      ["項目", "数量", "単位"].forEach((text) => {
+        hRow.appendChild(Object.assign(document.createElement("th"), {
+          className: "summary-th", textContent: text
+        }));
+      });
+      thead.appendChild(hRow);
+      table.appendChild(thead);
+
+      // データ行（rows[1..] を使用）
+      const tbody = document.createElement("tbody");
+      rows.slice(1).forEach((row) => {
+        if (!row[0]) return; // 項目名が空はスキップ
+        const tr = document.createElement("tr");
+        [row[0] ?? "", row[1] ?? "", row[2] ?? ""].forEach((text, c) => {
+          tr.appendChild(Object.assign(document.createElement("td"), {
+            className: "summary-td" + (c === 1 ? " summary-td--value" : ""),
+            textContent: text
+          }));
+        });
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      tableWrap.appendChild(table);
+      wrap.appendChild(tableWrap);
+    });
+  }
 }
 
 /**
