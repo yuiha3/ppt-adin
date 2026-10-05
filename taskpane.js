@@ -1703,6 +1703,133 @@ function renderSummaryAll(commonEntries, uniqueEntries, slideData) {
 }
 
 /**
+ * スライド結合ポップアップを開く。
+ * チェックしたスライド列を合算して1列にまとめる。
+ */
+function openMergePopup(commonEntries, slideData, container) {
+  document.getElementById("mergePopup")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "mergePopup";
+  overlay.className = "slide-popup-overlay";
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+
+  const dialog = document.createElement("div");
+  dialog.className = "split-popup-dialog";
+
+  // ヘッダー
+  const header = document.createElement("div");
+  header.className = "slide-popup-header";
+  header.appendChild(Object.assign(document.createElement("span"), {
+    className: "slide-popup-title", textContent: "結合するスライドを選択"
+  }));
+  const closeBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "slide-popup-close", textContent: "✕"
+  });
+  closeBtn.addEventListener("click", () => overlay.remove());
+  header.appendChild(closeBtn);
+  dialog.appendChild(header);
+
+  // 説明
+  dialog.appendChild(Object.assign(document.createElement("p"), {
+    className: "split-popup-desc",
+    textContent: "チェックしたスライドの列の値を合算して1列にまとめます。"
+  }));
+
+  // チェックボックス一覧
+  const body = document.createElement("div");
+  body.className = "split-popup-body";
+
+  const checkboxes = [];
+  slideData.forEach(({ slideName, slideIndex }) => {
+    const label = document.createElement("label");
+    label.className = "split-radio-label";
+    const cb = Object.assign(document.createElement("input"), {
+      type: "checkbox", checked: false
+    });
+    checkboxes.push({ cb, slideIndex, slideName });
+    label.append(cb, slideName);
+    body.appendChild(label);
+  });
+  dialog.appendChild(body);
+
+  // 実行ボタン
+  const execBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "split-exec-btn",
+    textContent: "選択スライドの集計を1つにまとめる"
+  });
+  execBtn.addEventListener("click", () => {
+    const selected = checkboxes.filter(({ cb }) => cb.checked);
+    if (selected.length < 2) {
+      execBtn.textContent = "2つ以上選択してください";
+      setTimeout(() => { execBtn.textContent = "選択スライドの集計を1つにまとめる"; }, 1500);
+      return;
+    }
+    overlay.remove();
+
+    const selectedIndices = new Set(selected.map(({ slideIndex }) => slideIndex));
+
+    // 結合後の slideName（例：スライド1,2,3）
+    const mergedName = selected.map(({ slideName }) => slideName).join(",");
+
+    // 結合スライドの slideIndex は最初のもの、値は合算
+    const firstIndex = selected[0].slideIndex;
+
+    // commonEntries の slideValues を更新した新しいエントリを生成
+    const mergedEntries = commonEntries.map(({ name, unit, slideValues }) => {
+      const newSlideValues = new Map();
+      let mergedTotal = null;
+      const places = [];
+
+      slideData.forEach(({ slideIndex }) => {
+        if (selectedIndices.has(slideIndex)) {
+          // 結合対象：合算して firstIndex に集約
+          const v = parseFloat(slideValues.get(slideIndex) ?? "");
+          if (!isNaN(v)) {
+            mergedTotal = (mergedTotal ?? 0) + v;
+            places.push(maxDecimalPlacesFromNumbers([v]));
+          }
+        } else {
+          // 非結合：そのまま保持
+          newSlideValues.set(slideIndex, slideValues.get(slideIndex) ?? "");
+        }
+      });
+
+      // 合算値を firstIndex に設定
+      if (mergedTotal !== null) {
+        const maxPlaces = Math.max(...places, 0);
+        newSlideValues.set(firstIndex, mergedTotal.toFixed(maxPlaces));
+      }
+
+      return { name, unit, slideValues: newSlideValues };
+    });
+
+    // 結合後の slideData（選択スライドは1つにまとめ、列名を変更）
+    const mergedSlideData = [];
+    const added = new Set();
+    slideData.forEach(({ slideIndex, slideName }) => {
+      if (selectedIndices.has(slideIndex)) {
+        if (!added.has("merged")) {
+          mergedSlideData.push({ slideIndex: firstIndex, slideName: mergedName });
+          added.add("merged");
+        }
+      } else {
+        mergedSlideData.push({ slideIndex, slideName });
+      }
+    });
+
+    // 現在のブロックの番号を取得して表を差し替え
+    const tableIndex = Number(container.dataset?.tableIndex ?? 1);
+    const newBlock = makeTableBlock(mergedEntries, mergedSlideData, tableIndex);
+    container.replaceWith(newBlock);
+  });
+  dialog.appendChild(execBtn);
+
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+}
+
+/**
  * 表切り分けポップアップを開く。
  * スライド一覧をラジオボタンで表示し、選択スライド以降を別ブロックとして追加する。
  */
@@ -1821,12 +1948,17 @@ function renderCommonBlock(commonEntries, slideData, container) {
   container.appendChild(makeTableBlock(commonEntries, slideData, 1));
 }
 
-/** 切り分けボタン＋コピーボタンの横並び行を生成 */
+/** 切り分けボタン＋スライド結合ボタン＋コピーボタンの横並び行を生成 */
 function makeSummaryBtnRow(commonEntries, slideData, container, getTsv, copyLabel) {
   const splitBtn = Object.assign(document.createElement("button"), {
     type: "button", className: "summary-split-btn", textContent: "表切り分け"
   });
   splitBtn.addEventListener("click", () => openSplitPopup(commonEntries, slideData, container));
+
+  const mergeBtn = Object.assign(document.createElement("button"), {
+    type: "button", className: "summary-merge-btn", textContent: "スライド結合"
+  });
+  mergeBtn.addEventListener("click", () => openMergePopup(commonEntries, slideData, container));
 
   const copyBtn = Object.assign(document.createElement("button"), {
     type: "button", className: "summary-excel-copy-btn", textContent: copyLabel
@@ -1845,7 +1977,7 @@ function makeSummaryBtnRow(commonEntries, slideData, container, getTsv, copyLabe
 
   const row = document.createElement("div");
   row.className = "summary-btn-row";
-  row.append(splitBtn, copyBtn);
+  row.append(splitBtn, mergeBtn, copyBtn);
   return row;
 }
 
