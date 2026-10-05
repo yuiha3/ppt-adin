@@ -1751,3 +1751,10 @@ tbody tr:nth-child(even) .summary-td--sticky {
   transition: background 0.1s;
 }
 .photomass-merge-btn:hover { background: #f0fdf4; border-color: #86efac; color: #166534; }
+
+/* 集計まとめタブ：区切り線 */
+.summary-divider {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 16px 0;
+}

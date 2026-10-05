@@ -1705,6 +1705,9 @@ function renderSummaryAll(commonEntries, uniqueEntries, slideData) {
 
   // ── 各スライドの元の集計表（縦並び）──────────────────────
   if (slideData.length > 0) {
+    const hr = document.createElement("hr");
+    hr.className = "summary-divider";
+    wrap.appendChild(hr);
     wrap.appendChild(makeSectionLabel("各スライドの集計表"));
     slideData.forEach(({ slideName, rows }) => {
       // スライド番号ラベル
