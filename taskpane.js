@@ -1703,14 +1703,14 @@ function renderSummaryAll(commonEntries, uniqueEntries, slideData) {
 }
 
 /**
- * スライド結合ポップアップを開く。
- * チェックしたスライド列を合算して1列にまとめる。
+ * 集計まとめ用ポップアップの共通ベースを生成して返す。
+ * { overlay, dialog, body, addExecBtn } を返す。
  */
-function openMergePopup(commonEntries, slideData, container) {
-  document.getElementById("mergePopup")?.remove();
+function makeSummaryPopup(popupId, title, descText) {
+  document.getElementById(popupId)?.remove();
 
   const overlay = document.createElement("div");
-  overlay.id = "mergePopup";
+  overlay.id = popupId;
   overlay.className = "slide-popup-overlay";
   overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
 
@@ -1721,7 +1721,7 @@ function openMergePopup(commonEntries, slideData, container) {
   const header = document.createElement("div");
   header.className = "slide-popup-header";
   header.appendChild(Object.assign(document.createElement("span"), {
-    className: "slide-popup-title", textContent: "結合するスライドを選択"
+    className: "slide-popup-title", textContent: title
   }));
   const closeBtn = Object.assign(document.createElement("button"), {
     type: "button", className: "slide-popup-close", textContent: "✕"
@@ -1732,33 +1732,52 @@ function openMergePopup(commonEntries, slideData, container) {
 
   // 説明
   dialog.appendChild(Object.assign(document.createElement("p"), {
-    className: "split-popup-desc",
-    textContent: "チェックしたスライドの列の値を合算して1列にまとめます。"
+    className: "split-popup-desc", textContent: descText
   }));
 
-  // チェックボックス一覧
+  // ボディ（選択肢を呼び出し元が追加する）
   const body = document.createElement("div");
   body.className = "split-popup-body";
+  dialog.appendChild(body);
 
+  // 実行ボタンを追加してポップアップを表示するヘルパー
+  const addExecBtn = (label, onClick) => {
+    const btn = Object.assign(document.createElement("button"), {
+      type: "button", className: "split-exec-btn", textContent: label
+    });
+    btn.addEventListener("click", () => onClick(btn));
+    dialog.appendChild(btn);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    return btn;
+  };
+
+  return { overlay, dialog, body, addExecBtn };
+}
+
+/**
+ * スライド結合ポップアップを開く。
+ * チェックしたスライド列を合算して1列にまとめる。
+ */
+function openMergePopup(commonEntries, slideData, container) {
+  const { overlay, body, addExecBtn } = makeSummaryPopup(
+    "mergePopup",
+    "結合するスライドを選択",
+    "チェックしたスライドの列の値を合算して1列にまとめます。"
+  );
+
+  // チェックボックス一覧
   const checkboxes = [];
   slideData.forEach(({ slideName, slideIndex }) => {
     const label = document.createElement("label");
     label.className = "split-radio-label";
-    const cb = Object.assign(document.createElement("input"), {
-      type: "checkbox", checked: false
-    });
+    const cb = Object.assign(document.createElement("input"), { type: "checkbox", checked: false });
     checkboxes.push({ cb, slideIndex, slideName });
     label.append(cb, slideName);
     body.appendChild(label);
   });
-  dialog.appendChild(body);
 
-  // 実行ボタン
-  const execBtn = Object.assign(document.createElement("button"), {
-    type: "button", className: "split-exec-btn",
-    textContent: "選択スライドの集計を1つにまとめる"
-  });
-  execBtn.addEventListener("click", () => {
+  addExecBtn("選択スライドの集計を1つにまとめる", (execBtn) => {
     const selected = checkboxes.filter(({ cb }) => cb.checked);
     if (selected.length < 2) {
       execBtn.textContent = "2つ以上選択してください";
@@ -1835,62 +1854,28 @@ function openMergePopup(commonEntries, slideData, container) {
  * スライド一覧をラジオボタンで表示し、選択スライド以降を別ブロックとして追加する。
  */
 function openSplitPopup(commonEntries, slideData, wrap) {
-  document.getElementById("splitPopup")?.remove();
-
-  const overlay = document.createElement("div");
-  overlay.id = "splitPopup";
-  overlay.className = "slide-popup-overlay";
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
-
-  const dialog = document.createElement("div");
-  dialog.className = "split-popup-dialog";
-
-  // ヘッダー
-  const header = document.createElement("div");
-  header.className = "slide-popup-header";
-  header.appendChild(Object.assign(document.createElement("span"), {
-    className: "slide-popup-title", textContent: "表の切り分け位置を選択"
-  }));
-  const closeBtn = Object.assign(document.createElement("button"), {
-    type: "button", className: "slide-popup-close", textContent: "✕"
-  });
-  closeBtn.addEventListener("click", () => overlay.remove());
-  header.appendChild(closeBtn);
-  dialog.appendChild(header);
-
-  // 説明
-  const desc = Object.assign(document.createElement("p"), {
-    className: "split-popup-desc",
-    textContent: "選択したスライド以降（選択したスライドを含む）を別の表として切り分けます。"
-  });
-  dialog.appendChild(desc);
+  const { overlay, body, addExecBtn } = makeSummaryPopup(
+    "splitPopup",
+    "表の切り分け位置を選択",
+    "選択したスライド以降（選択したスライドを含む）を別の表として切り分けます。"
+  );
 
   // ラジオボタン一覧（スライド2以降が選択可能）
-  const body = document.createElement("div");
-  body.className = "split-popup-body";
-
-  let selectedIdx = 1; // デフォルト：2番目のスライド
+  let selectedIdx = 1;
   slideData.slice(1).forEach(({ slideName }, i) => {
     const actualIdx = i + 1;
     const label = document.createElement("label");
     label.className = "split-radio-label";
     const radio = Object.assign(document.createElement("input"), {
-      type: "radio", name: "splitSlide",
-      value: String(actualIdx),
+      type: "radio", name: "splitSlide", value: String(actualIdx),
       checked: actualIdx === selectedIdx
     });
     radio.addEventListener("change", () => { selectedIdx = actualIdx; });
     label.append(radio, slideName);
     body.appendChild(label);
   });
-  dialog.appendChild(body);
 
-  // 実行ボタン
-  const execBtn = Object.assign(document.createElement("button"), {
-    type: "button", className: "split-exec-btn",
-    textContent: "選択スライドから切り分け"
-  });
-  execBtn.addEventListener("click", () => {
+  addExecBtn("選択スライドから切り分け", () => {
     overlay.remove();
     // slideData を [0..selectedIdx-1] と [selectedIdx..] に分割
     const slideData1 = slideData.slice(0, selectedIdx);
@@ -1909,10 +1894,6 @@ function openSplitPopup(commonEntries, slideData, wrap) {
     wrap.after(label);
     wrap.replaceWith(block1);
   });
-  dialog.appendChild(execBtn);
-
-  overlay.appendChild(dialog);
-  document.body.appendChild(overlay);
 }
 
 /**
