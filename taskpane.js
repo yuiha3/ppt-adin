@@ -990,10 +990,28 @@ async function runAutoSum(activePopupRows, tableRowEls) {
     const quantityInput = domRow?.querySelector(".quantityInput");
     if (!quantityInput) continue;
 
-    // 写真番号行
+    // 写真番号行：指定スライド全件から収集して連番圧縮
     if (domRow?.dataset.pinBottom === "true") {
-      try { quantityInput.value = await collectPhotoCodesFromSlide(); }
-      catch (e) { console.error("写真番号集計エラー:", e); }
+      try {
+        quantityInput.value = await PowerPoint.run(async (context) => {
+          const slides = await getTableTargetSlides(context);
+          if (slides.length === 0) return "なし";
+          const lines = [];
+          for (const slide of slides) {
+            const codes = await collectGroupedCodes(context, [slide], COLORS.BLACK);
+            lines.push(...codes);
+          }
+          if (lines.length === 0) return "なし";
+          // extractLetterCodes で再グループ化して連番圧縮
+          const grouped = {};
+          extractLetterCodes(lines.join("\n")).forEach(({ letter, number }) => {
+            (grouped[letter] ??= []).push(number);
+          });
+          return Object.keys(grouped).sort()
+            .map((letter) => `${letter}-${compressNumberRanges(grouped[letter])}`)
+            .join("\n");
+        });
+      } catch (e) { console.error("写真番号集計エラー:", e); }
       continue;
     }
 
@@ -3088,13 +3106,20 @@ function extractNumbers(text) {
 
 function extractLetterCodes(text) {
   const results = [];
-  // A-1 または A-1~17 の両形式にマッチして範囲を展開する
-  for (const m of text.matchAll(/\b([A-Z])-(\d+)(?:~(\d+))?\b/g)) {
-    const letter = m[1];
-    const start  = Number(m[2]);
-    const end    = m[3] !== undefined ? Number(m[3]) : start;
-    for (let n = start; n <= end; n++) {
-      results.push({ letter, number: n });
+  // 1行ずつ処理する。
+  // 集計出力は "A-33, 35~36" のようにカンマ区切りで英字なしの続き番号が続く形式のため、
+  // 行頭の英字を特定したうえで行内の全数字トークンを同じ英字グループとして展開する。
+  for (const line of text.split(/\n/)) {
+    const headerMatch = line.match(/^([A-Z])-(\d+)/);
+    if (!headerMatch) continue;
+    const letter = headerMatch[1];
+    // 行全体から「数字」「数字~数字」をすべて取り出して展開
+    for (const m of line.matchAll(/(\d+)(?:~(\d+))?/g)) {
+      const start = Number(m[1]);
+      const end   = m[2] !== undefined ? Number(m[2]) : start;
+      for (let n = start; n <= end; n++) {
+        results.push({ letter, number: n });
+      }
     }
   }
   return results;
@@ -3103,23 +3128,15 @@ function extractLetterCodes(text) {
 function compressNumberRanges(numbers) {
   if (!numbers?.length) return "";
 
-  const sorted = [...numbers].sort((a, b) => a - b);
+  // 重複を除去してソート
+  const sorted = [...new Set(numbers)].sort((a, b) => a - b);
   const ranges = [];
   let i = 0;
 
   while (i < sorted.length) {
-    if (i + 1 < sorted.length && sorted[i] === sorted[i + 1]) {
-      ranges.push(String(sorted[i]));
-      i++;
-      continue;
-    }
     let start = sorted[i];
     let prev  = sorted[i];
-    while (
-      i + 1 < sorted.length &&
-      sorted[i + 1] === prev + 1 &&
-      sorted[i + 1] !== sorted[i + 2]
-    ) {
+    while (i + 1 < sorted.length && sorted[i + 1] === prev + 1) {
       i++;
       prev = sorted[i];
     }
