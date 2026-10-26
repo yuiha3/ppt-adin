@@ -1015,9 +1015,9 @@ async function runAutoSum(activePopupRows, tableRowEls) {
       continue;
     }
 
-    // その他行（noUnit かつ pinBottom でない）：入力済みはスキップ、空は「なし」
+    // その他行（noUnit かつ pinBottom でない）：毎回クリアして「なし」にリセット
     if (domRow?.classList.contains("noUnitRow")) {
-      if (!quantityInput.value.trim()) quantityInput.value = "なし";
+      quantityInput.value = "なし";
       continue;
     }
 
